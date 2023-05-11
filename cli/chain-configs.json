@@ -1,0 +1,20 @@
+{
+  "mainnet": [],
+  "testnet": [
+    {
+      "name": "avalanche",
+      "chainId": 43113,
+      "rpcUrl": "https://api.avax-test.network/ext/bc/C/rpc"
+    },
+    {
+      "name": "arbitrum",
+      "chainId": 421613,
+      "rpcUrl": "https://goerli-rollup.arbitrum.io/rpc"
+    },
+    {
+      "name": "bnb-smart-chain",
+      "chainId": 97,
+      "rpcUrl": "https://data-seed-prebsc-1-s3.binance.org:8545/"
+    }
+  ]
+}
