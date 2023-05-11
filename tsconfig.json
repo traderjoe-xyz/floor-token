@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "NodeNext",
+        "outDir": "dist",
+        "rootDir": "cli",
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+    },
+    "include": [
+        "cli/**/*"
+    ]
+}
