@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {ERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
+import {ERC20PresetFixedSupply} from "openzeppelin-contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
 import {Ownable2Step} from "openzeppelin-contracts/access/Ownable2Step.sol";
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 
@@ -16,7 +16,7 @@ import {ITransferTaxToken} from "./interfaces/ITransferTaxToken.sol";
  * The tax recipient and tax rate can be changed by the owner, as well as the exclusion status of accounts from tax.
  * The owner can mint tokens to any account.
  */
-contract TransferTaxToken is ERC20, Ownable2Step, ITransferTaxToken {
+contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxToken {
     using Math for uint256;
 
     uint256 internal constant _PRECISION = 1e18;
@@ -32,7 +32,19 @@ contract TransferTaxToken is ERC20, Ownable2Step, ITransferTaxToken {
      */
     mapping(address => bool) private _excludedFromTax;
 
-    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
+    /**
+     * @notice Constructor that initializes the token's name, symbol and initial supply.
+     * @dev The token is minted to the `owner`.
+     * @param name The name of the token.
+     * @param symbol The symbol of the token.
+     * @param initialSupply The initial supply of the token.
+     * @param owner The owner of the token.
+     */
+    constructor(string memory name, string memory symbol, uint256 initialSupply, address owner)
+        ERC20PresetFixedSupply(name, symbol, initialSupply, owner)
+    {
+        _transferOwnership(owner);
+    }
 
     /**
      * @notice Returns the address of the transfer tax recipient.
@@ -57,16 +69,6 @@ contract TransferTaxToken is ERC20, Ownable2Step, ITransferTaxToken {
      */
     function excludedFromTax(address account) public view virtual override returns (bool) {
         return _excludedFromTax[account];
-    }
-
-    /**
-     * @notice Mint `amount` tokens to `to`.
-     * @dev Only callable by the owner.
-     * @param to The address to mint to.
-     * @param amount The amount to mint.
-     */
-    function mint(address to, uint256 amount) public virtual override onlyOwner {
-        _mint(to, amount);
     }
 
     /**

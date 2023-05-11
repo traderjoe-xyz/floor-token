@@ -12,7 +12,7 @@ contract TransferTaxTokenTest is Test {
     TransferTaxToken public token;
 
     function setUp() public {
-        token = new TransferTaxToken("Transfer Tax Token", "TTT");
+        token = new TransferTaxToken("Transfer Tax Token", "TTT", 0, address(this));
     }
 
     function test_NameAndSymbol() public {
@@ -116,52 +116,11 @@ contract TransferTaxTokenTest is Test {
         assertFalse(token.excludedFromTax(account1), "test_SetExcludedFromTaxFuzzing::2");
     }
 
-    function test_Mint() public {
-        token.mint(address(1), 1);
-        assertEq(token.balanceOf(address(1)), 1, "test_Mint::1");
-
-        token.mint(address(1), 1);
-        assertEq(token.balanceOf(address(1)), 2, "test_Mint::2");
-
-        token.mint(address(2), 1);
-        assertEq(token.balanceOf(address(2)), 1, "test_Mint::3");
-
-        token.mint(address(1), 0);
-        assertEq(token.balanceOf(address(1)), 2, "test_Mint::4");
-
-        token.mint(address(2), 0);
-        assertEq(token.balanceOf(address(2)), 1, "test_Mint::5");
-
-        assertEq(token.totalSupply(), 3, "test_Mint::6");
-
-        assertEq(token.balanceOf(address(3)), 0, "test_Mint::7");
-
-        vm.expectRevert("ERC20: mint to the zero address");
-        token.mint(address(0), 1);
-    }
-
-    function test_MintFuzz(address to, uint256 amount1, uint256 amount2) public {
-        vm.assume(to != address(0));
-
-        token.mint(to, amount1);
-        assertEq(token.balanceOf(to), amount1, "test_MintFuzz::1");
-
-        amount2 = bound(amount2, 0, type(uint256).max - amount1);
-
-        token.mint(to, amount2);
-        assertEq(token.balanceOf(to), amount1 + amount2, "test_MintFuzz::2");
-
-        assertEq(token.totalSupply(), amount1 + amount2, "test_MintFuzz::3");
-
-        token.mint(to, 0);
-        assertEq(token.balanceOf(to), amount1 + amount2, "test_MintFuzz::4");
-    }
-
     function test_Transfer() public {
         token.setTaxRecipient(address(this));
         token.setTaxRate(0.1e18); // 10%
 
-        token.mint(address(1), 100);
+        deal(address(token), address(1), 100);
 
         vm.prank(address(1));
         token.transfer(address(2), 10);
@@ -193,7 +152,7 @@ contract TransferTaxTokenTest is Test {
         token.setTaxRecipient(address(this));
         token.setTaxRate(taxRate);
 
-        token.mint(from, sum);
+        deal(address(token), from, sum);
 
         vm.prank(from);
         token.transfer(to, amount1);

@@ -16,8 +16,6 @@ interface ITransferTaxToken {
 
     function excludedFromTax(address account) external view returns (bool);
 
-    function mint(address to, uint256 amount) external;
-
     function setTaxRate(uint256 taxRate) external;
 
     function setTaxRecipient(address taxRecipient) external;
