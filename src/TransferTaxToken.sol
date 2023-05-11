@@ -83,7 +83,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITran
     }
 
     /**
-     * @notice Set the transfer tax recipient to `newTaxRecipient`.
+     * @notice Sets the transfer tax recipient to `newTaxRecipient`.
      * @dev Only callable by the owner.
      * @param newTaxRecipient The new transfer tax recipient.
      */
@@ -92,7 +92,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITran
     }
 
     /**
-     * @notice Set the transfer tax rate to `newTaxRate`.
+     * @notice Sets the transfer tax rate to `newTaxRate`.
      * @dev Only callable by the owner. The tax recipient must be set before setting the tax rate.
      * The tax rate must be less than or equal to 100% (1e18).
      * @param newTaxRate The new transfer tax rate.
@@ -102,7 +102,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITran
     }
 
     /**
-     * @notice Set `excluded` as the exclusion status of `account` from transfer tax.
+     * @notice Sets `excluded` as the exclusion status of `account` from transfer tax.
      * @dev Only callable by the owner.
      * @param account The account to set exclusion status for.
      * @param excluded The exclusion status to set.
@@ -112,7 +112,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITran
     }
 
     /**
-     * @dev Set the transfer tax recipient to `newTaxRecipient`.
+     * @dev Sets the transfer tax recipient to `newTaxRecipient`.
      * @param newTaxRecipient The new transfer tax recipient.
      */
     function _setTaxRecipient(address newTaxRecipient) internal virtual {
@@ -124,7 +124,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITran
     }
 
     /**
-     * @dev Set the transfer tax rate to `newTaxRate`.
+     * @dev Sets the transfer tax rate to `newTaxRate`.
      * @param newTaxRate The new transfer tax rate.
      */
     function _setTaxRate(uint256 newTaxRate) internal virtual {
@@ -138,7 +138,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITran
     }
 
     /**
-     * @dev Set `excluded` as the exclusion status of `account` from transfer tax.
+     * @dev Sets `excluded` as the exclusion status of `account` from transfer tax.
      * @param account The account to set exclusion status for.
      * @param excluded The exclusion status to set.
      */
@@ -151,7 +151,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITran
     }
 
     /**
-     * @dev Transfer `amount` tokens from `sender` to `recipient`.
+     * @dev Transfers `amount` tokens from `sender` to `recipient`.
      * Overrides ERC20's transfer function to include transfer tax.
      * @param sender The sender address.
      * @param recipient The recipient address.
