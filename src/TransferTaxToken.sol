@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {ERC20PresetFixedSupply} from "openzeppelin-contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
+import {ERC20PresetFixedSupply, IERC20} from "openzeppelin-contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
+import {ERC165} from "openzeppelin-contracts/utils/introspection/ERC165.sol";
 import {Ownable2Step} from "openzeppelin-contracts/access/Ownable2Step.sol";
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 
-import {ITransferTaxToken} from "./interfaces/ITransferTaxToken.sol";
+import {ITransferTaxToken, IERC165} from "./interfaces/ITransferTaxToken.sol";
 
 /**
  * @title Transfer Tax Token
@@ -16,7 +17,7 @@ import {ITransferTaxToken} from "./interfaces/ITransferTaxToken.sol";
  * The tax recipient and tax rate can be changed by the owner, as well as the exclusion status of accounts from tax.
  * The owner can mint tokens to any account.
  */
-contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxToken {
+contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITransferTaxToken {
     using Math for uint256;
 
     uint256 internal constant _PRECISION = 1e18;
@@ -60,6 +61,16 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxT
      */
     function taxRate() public view virtual override returns (uint256) {
         return _taxRate;
+    }
+
+    /**
+     * @notice Returns true if the `interfaceId` is supported by this contract.
+     * @param interfaceId The interface identifier.
+     * @return True if the `interfaceId` is supported by this contract.
+     */
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(ITransferTaxToken).interfaceId || interfaceId == type(IERC20).interfaceId
+            || ERC165.supportsInterface(interfaceId);
     }
 
     /**
