@@ -20,8 +20,21 @@ contract TransferTaxTokenTest is Test {
         assertEq(token.symbol(), "TTT", "test_NameAndSymbol::2");
     }
 
-    function test_revert_NotOwner() public {
-        //TODO
+    function test_revert_NotOwner(address user) public {
+        vm.assume(user != token.owner());
+
+        vm.startPrank(user);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        token.setTaxRecipient(address(1));
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        token.setTaxRate(1);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        token.setExcludedFromTax(address(1), true);
+
+        vm.stopPrank();
     }
 
     function test_SetTaxRecipient() public {
