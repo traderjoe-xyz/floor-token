@@ -18,8 +18,8 @@ export default () => {
         },
       },
       {
-        type: "checkbox",
-        name: "chains",
+        type: "list",
+        name: "chain",
         message: "Select the chains you want to deploy to:",
         choices: [
           {
@@ -32,15 +32,8 @@ export default () => {
             name: "BNB Smart Chain",
           },
         ],
-        validate(answer) {
-          if (answer.length < 1) {
-            return "You must choose at least one chain.";
-          }
-
-          return true;
-        },
-        filter(val: string[]) {
-          return val.map((value) => value.toLowerCase().replace(/\s/g, "-"));
+        filter(val: string) {
+          return val.toLowerCase().replace(/\s/g, "-");
         },
       },
       {

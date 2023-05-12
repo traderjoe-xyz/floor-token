@@ -1,6 +1,6 @@
 export interface ContractCreationArgs {
   chainType: string;
-  chains: string[];
+  chain: string;
   tokenName: string;
   tokenSymbol: string;
   floorPrice: number;
