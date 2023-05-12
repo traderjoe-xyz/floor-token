@@ -1,0 +1,31 @@
+{
+  "name": "floor-token",
+  "version": "0.0.1",
+  "main": "./dist/index.js",
+  "repository": "https://github.com/traderjoe-xyz/floor-token.git",
+  "author": "Trader Joe",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "yarn clean:some && tsc -p .",
+    "start": "ts-node .",
+    "dev": "tsc -p . --watch",
+    "clean:some": "rm -rf ./dist",
+    "clean:all": "rm -rf ./node_modules ./dist"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "ethers": "^6.3.0",
+    "figlet": "^1.6.0",
+    "inquirer": "^9.2.2",
+    "log-symbols": "^5.1.0",
+    "ora": "^6.3.0"
+  },
+  "devDependencies": {
+    "@types/figlet": "^1.5.6",
+    "@types/inquirer": "^9.0.3",
+    "@types/node": "^20.1.2",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
+  }
+}
