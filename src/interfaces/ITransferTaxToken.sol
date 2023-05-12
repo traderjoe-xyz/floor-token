@@ -2,8 +2,9 @@
 pragma solidity ^0.8.13;
 
 import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
+import {IERC165} from "openzeppelin-contracts/utils/introspection/IERC165.sol";
 
-interface ITransferTaxToken {
+interface ITransferTaxToken is IERC165 {
     event TaxRecipientSet(address indexed taxRecipient);
 
     event TaxRateSet(uint256 taxRate);

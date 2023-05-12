@@ -20,6 +20,16 @@ contract TransferTaxTokenTest is Test {
         assertEq(token.symbol(), "TTT", "test_NameAndSymbol::2");
     }
 
+    function test_SupportsInterface() public {
+        assertTrue(token.supportsInterface(type(ITransferTaxToken).interfaceId), "test_SupportsInterface::1");
+        assertTrue(token.supportsInterface(type(IERC20).interfaceId), "test_SupportsInterface::2");
+        assertTrue(token.supportsInterface(type(IERC165).interfaceId), "test_SupportsInterface::3");
+        assertTrue(token.supportsInterface(type(ERC165).interfaceId), "test_SupportsInterface::4");
+
+        assertFalse(token.supportsInterface(bytes4(0xffffffff)), "test_SupportsInterface::5");
+        assertFalse(token.supportsInterface(bytes4(0x00000000)), "test_SupportsInterface::6");
+    }
+
     function test_revert_NotOwner(address user) public {
         vm.assume(user != token.owner());
 

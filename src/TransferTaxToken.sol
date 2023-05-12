@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {ERC20PresetFixedSupply} from "openzeppelin-contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
+import {ERC20PresetFixedSupply, IERC20} from "openzeppelin-contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
+import {ERC165} from "openzeppelin-contracts/utils/introspection/ERC165.sol";
 import {Ownable2Step} from "openzeppelin-contracts/access/Ownable2Step.sol";
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 
-import {ITransferTaxToken} from "./interfaces/ITransferTaxToken.sol";
+import {ITransferTaxToken, IERC165} from "./interfaces/ITransferTaxToken.sol";
 
 /**
  * @title Transfer Tax Token
@@ -16,7 +17,7 @@ import {ITransferTaxToken} from "./interfaces/ITransferTaxToken.sol";
  * The tax recipient and tax rate can be changed by the owner, as well as the exclusion status of accounts from tax.
  * The owner can mint tokens to any account.
  */
-contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxToken {
+contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITransferTaxToken {
     using Math for uint256;
 
     uint256 internal constant _PRECISION = 1e18;
@@ -63,6 +64,16 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxT
     }
 
     /**
+     * @notice Returns true if the `interfaceId` is supported by this contract.
+     * @param interfaceId The interface identifier.
+     * @return True if the `interfaceId` is supported by this contract.
+     */
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC165, IERC165) returns (bool) {
+        return interfaceId == type(ITransferTaxToken).interfaceId || interfaceId == type(IERC20).interfaceId
+            || ERC165.supportsInterface(interfaceId);
+    }
+
+    /**
      * @notice Returns true if `account` is excluded from transfer tax.
      * @param account The account to check.
      * @return True if `account` is excluded from transfer tax.
@@ -72,7 +83,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxT
     }
 
     /**
-     * @notice Set the transfer tax recipient to `newTaxRecipient`.
+     * @notice Sets the transfer tax recipient to `newTaxRecipient`.
      * @dev Only callable by the owner.
      * @param newTaxRecipient The new transfer tax recipient.
      */
@@ -81,7 +92,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxT
     }
 
     /**
-     * @notice Set the transfer tax rate to `newTaxRate`.
+     * @notice Sets the transfer tax rate to `newTaxRate`.
      * @dev Only callable by the owner. The tax recipient must be set before setting the tax rate.
      * The tax rate must be less than or equal to 100% (1e18).
      * @param newTaxRate The new transfer tax rate.
@@ -91,7 +102,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxT
     }
 
     /**
-     * @notice Set `excluded` as the exclusion status of `account` from transfer tax.
+     * @notice Sets `excluded` as the exclusion status of `account` from transfer tax.
      * @dev Only callable by the owner.
      * @param account The account to set exclusion status for.
      * @param excluded The exclusion status to set.
@@ -101,7 +112,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxT
     }
 
     /**
-     * @dev Set the transfer tax recipient to `newTaxRecipient`.
+     * @dev Sets the transfer tax recipient to `newTaxRecipient`.
      * @param newTaxRecipient The new transfer tax recipient.
      */
     function _setTaxRecipient(address newTaxRecipient) internal virtual {
@@ -113,7 +124,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxT
     }
 
     /**
-     * @dev Set the transfer tax rate to `newTaxRate`.
+     * @dev Sets the transfer tax rate to `newTaxRate`.
      * @param newTaxRate The new transfer tax rate.
      */
     function _setTaxRate(uint256 newTaxRate) internal virtual {
@@ -127,7 +138,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxT
     }
 
     /**
-     * @dev Set `excluded` as the exclusion status of `account` from transfer tax.
+     * @dev Sets `excluded` as the exclusion status of `account` from transfer tax.
      * @param account The account to set exclusion status for.
      * @param excluded The exclusion status to set.
      */
@@ -140,7 +151,7 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ITransferTaxT
     }
 
     /**
-     * @dev Transfer `amount` tokens from `sender` to `recipient`.
+     * @dev Transfers `amount` tokens from `sender` to `recipient`.
      * Overrides ERC20's transfer function to include transfer tax.
      * @param sender The sender address.
      * @param recipient The recipient address.
