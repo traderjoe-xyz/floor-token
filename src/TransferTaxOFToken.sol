@@ -13,7 +13,6 @@ import {ITransferTaxOFToken} from "./interfaces/ITransferTaxOFToken.sol";
  * The tax is calculated as `amount * taxRate / PRECISION`, where `PRECISION = 1e18`.
  * The tax is deducted from the amount before the transfer and sent to the tax recipient.
  * The tax recipient and tax rate can be changed by the owner, as well as the exclusion status of accounts from tax.
- * The owner can mint tokens to any account.
  * The token is also an OFT token, the tax isn't applied to OFT transfers.
  */
 contract TransferTaxOFToken is OFTCore, TransferTaxToken, ITransferTaxOFToken {
@@ -22,12 +21,11 @@ contract TransferTaxOFToken is OFTCore, TransferTaxToken, ITransferTaxOFToken {
      * @dev The token is minted to the `owner`.
      * @param name The name of the token.
      * @param symbol The symbol of the token.
-     * @param initialSupply The initial supply of the token.
      * @param owner The owner of the token.
      * @param lzEndpoint The OFT endpoint.
      */
-    constructor(string memory name, string memory symbol, uint256 initialSupply, address owner, address lzEndpoint)
-        TransferTaxToken(name, symbol, initialSupply, owner)
+    constructor(string memory name, string memory symbol, address owner, address lzEndpoint)
+        TransferTaxToken(name, symbol, owner)
         OFTCore(lzEndpoint)
     {}
 

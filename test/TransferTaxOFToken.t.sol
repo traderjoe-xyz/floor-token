@@ -5,12 +5,13 @@ import "forge-std/Test.sol";
 
 import "src/TransferTaxToken.sol";
 import "src/TransferTaxOFToken.sol";
+import "src/presets/TransferTaxOFTokenInitialSupply.sol";
 import "layerzero/mocks/LZEndpointMock.sol";
 
 contract TransferTaxOFTokenTest is Test {
     uint16 public constant CHAIN_ID_1 = 1;
     LZEndpointMock public endpoint1;
-    TransferTaxOFToken public token1;
+    TransferTaxOFTokenInitialSupply public token1;
 
     uint16 public constant CHAIN_ID_2 = 2;
     LZEndpointMock public endpoint2;
@@ -27,8 +28,9 @@ contract TransferTaxOFTokenTest is Test {
 
         vm.startPrank(owner);
 
-        token1 = new TransferTaxOFToken("Transfer Tax OF Token", "TTOFT", globalSupply, owner, address(endpoint1));
-        token2 = new TransferTaxOFToken("Transfer Tax OF Token", "TTOFT", 0, owner, address(endpoint2));
+        token1 =
+        new TransferTaxOFTokenInitialSupply("Transfer Tax OF Token", "TTOFT", owner, globalSupply, address(endpoint1));
+        token2 = new TransferTaxOFToken("Transfer Tax OF Token", "TTOFT", owner, address(endpoint2));
 
         endpoint1.setDestLzEndpoint(address(token2), address(endpoint2));
         endpoint2.setDestLzEndpoint(address(token1), address(endpoint1));

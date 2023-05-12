@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {ERC20PresetFixedSupply, IERC20} from "openzeppelin-contracts/token/ERC20/presets/ERC20PresetFixedSupply.sol";
+import {ERC20, IERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
 import {ERC165} from "openzeppelin-contracts/utils/introspection/ERC165.sol";
 import {Ownable2Step} from "openzeppelin-contracts/access/Ownable2Step.sol";
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
@@ -15,9 +15,8 @@ import {ITransferTaxToken, IERC165} from "./interfaces/ITransferTaxToken.sol";
  * The tax is calculated as `amount * taxRate / PRECISION`, where `PRECISION = 1e18`.
  * The tax is deducted from the amount before the transfer and sent to the tax recipient.
  * The tax recipient and tax rate can be changed by the owner, as well as the exclusion status of accounts from tax.
- * The owner can mint tokens to any account.
  */
-contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITransferTaxToken {
+contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
     using Math for uint256;
 
     uint256 internal constant _PRECISION = 1e18;
@@ -38,12 +37,9 @@ contract TransferTaxToken is ERC20PresetFixedSupply, Ownable2Step, ERC165, ITran
      * @dev The token is minted to the `owner`.
      * @param name The name of the token.
      * @param symbol The symbol of the token.
-     * @param initialSupply The initial supply of the token.
      * @param owner The owner of the token.
      */
-    constructor(string memory name, string memory symbol, uint256 initialSupply, address owner)
-        ERC20PresetFixedSupply(name, symbol, initialSupply, owner)
-    {
+    constructor(string memory name, string memory symbol, address owner) ERC20(name, symbol) {
         _transferOwnership(owner);
     }
 

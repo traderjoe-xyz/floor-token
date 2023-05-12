@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
 import "openzeppelin-contracts/utils/math/Math.sol";
 
 import "src/TransferTaxToken.sol";
+import "src/presets/TransferTaxTokenInitialSupply.sol";
 
 contract TransferTaxTokenTest is Test {
     using Math for uint256;
@@ -12,7 +13,7 @@ contract TransferTaxTokenTest is Test {
     TransferTaxToken public token;
 
     function setUp() public {
-        token = new TransferTaxToken("Transfer Tax Token", "TTT", 0, address(this));
+        token = new TransferTaxToken("Transfer Tax Token", "TTT", address(this));
     }
 
     function test_NameAndSymbol() public {
@@ -45,6 +46,15 @@ contract TransferTaxTokenTest is Test {
         token.setExcludedFromTax(address(1), true);
 
         vm.stopPrank();
+    }
+
+    function test_MintInitialSupply(address owner, uint256 initialSupply) public {
+        vm.assume(owner != address(0));
+
+        token = TransferTaxToken(new TransferTaxTokenInitialSupply("Transfer Tax Token", "TTT", owner, initialSupply));
+
+        assertEq(token.balanceOf(owner), initialSupply, "test_MintInitialSupply::1");
+        assertEq(token.totalSupply(), initialSupply, "test_MintInitialSupply::2");
     }
 
     function test_SetTaxRecipient() public {
