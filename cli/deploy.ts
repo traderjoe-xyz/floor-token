@@ -16,11 +16,13 @@ class MultichainWallet {
   public chains: string[];
   public wallets: Map<string, ethers.Wallet>;
   public rpcs: Map<string, string>;
+  public contractAddresses: Map<string, string>;
 
   constructor(chainType: string, chains: string[]) {
     this.chains = chains;
     this.wallets = new Map<string, ethers.Wallet>();
     this.rpcs = new Map<string, string>();
+    this.contractAddresses = new Map<string, string>();
 
     for (const chain of chains) {
       const chainConfig = chainConfigs[chainType].find(
@@ -48,14 +50,21 @@ class MultichainWallet {
     }
   }
 
-  public async deployTokenContracts() {
+  public async deployTokenContracts(name: string, symbol: string) {
     const spinner = ora("Deploying the token contract").start();
 
     for (const chain of this.chains) {
       const wallet = this.wallets.get(chain);
       const rpc = this.rpcs.get(chain);
 
-      const address = await deployContract("src/Token.sol:Token", wallet, rpc);
+      const address = await deployContract(
+        "src/TransferTaxToken.sol:TransferTaxToken",
+        wallet,
+        rpc,
+        [name, symbol, wallet.address]
+      );
+
+      this.contractAddresses.set(chain, address);
 
       spinner.suffixText += `\n   ${logSymbols.info} Deployed on ${chain} at ${address}`;
     }
@@ -63,30 +72,37 @@ class MultichainWallet {
     spinner.succeed("Token contracts deployed");
   }
 
-  public async createLBPairs() {
-    const spinner = ora("Creating the LB pairs").start();
+  public async setTaxRate(taxRate: number) {
+    const spinner = ora("Setting the tax rate").start();
+    const taxRateBigint = ethers.parseUnits(taxRate.toString(), 16);
 
     for (const chain of this.chains) {
-      // TODO: Create the LB pairs
-      await new Promise((r) => setTimeout(r, 1000));
+      const wallet = this.wallets.get(chain);
+      const tokenAddress = this.contractAddresses.get(chain);
 
-      spinner.suffixText += `\n   ${logSymbols.info} Deployed on ${chain} at 0xE28050B0ef91BEd960F939A30EF5d37f786129E7`;
-    }
+      const tokenContract = new ethers.Contract(
+        tokenAddress,
+        [
+          "function setTaxRate(uint256 taxRate) external",
+          "function setTaxRecipient(address newTaxRecipient) external",
+        ],
+        wallet
+      );
 
-    spinner.succeed("LB pairs created");
-  }
+      const taxRecipientTx = await tokenContract.setTaxRecipient(
+        wallet.address
+      );
 
-  public async seedLiquidity() {
-    const spinner = ora("Seeding initial liquidity").start();
+      await taxRecipientTx.wait();
 
-    for (const chain of this.chains) {
-      // TODO: Seed the liquidity
-      await new Promise((r) => setTimeout(r, 1000));
+      const taxRateTx = await tokenContract.setTaxRate(taxRateBigint);
+
+      await taxRateTx.wait();
 
       spinner.suffixText += `\n   ${logSymbols.info} Done on ${chain}`;
     }
 
-    spinner.succeed("Liquidity seeded");
+    spinner.succeed("Tax rate set");
   }
 }
 
@@ -97,26 +113,30 @@ export const deploy = async (deployArgs: ContractCreationArgs) => {
 
   await wallets.verifyBalances();
 
-  await wallets.deployTokenContracts();
+  await wallets.deployTokenContracts(
+    deployArgs.tokenName,
+    deployArgs.tokenSymbol
+  );
 
-  await wallets.createLBPairs();
-
-  await wallets.seedLiquidity();
+  if (deployArgs.taxRate > 0) {
+    await wallets.setTaxRate(deployArgs.taxRate);
+  }
 };
 
 const deployContract = async (
   contractPath: string,
   wallet: Wallet,
-  rpc: string
+  rpc: string,
+  constructorArgs?: string[]
 ): Promise<string> => {
-  const { stdout, stderr } = await execSync(
-    `forge create ${contractPath} --private-key=${wallet.privateKey} --rpc-url=${rpc} --verify`
-  );
+  const constructorArgsString =
+    constructorArgs?.length > 0
+      ? `--constructor-args ${constructorArgs.join(" ")}`
+      : "";
 
-  if (stderr) {
-    console.error("could not execute command: ", stderr);
-    return;
-  }
+  const { stdout } = await execSync(
+    `forge create ${contractPath} --private-key=${wallet.privateKey} --rpc-url=${rpc} --verify ${constructorArgsString}`
+  );
 
   const regex = /Deployed to: (0x[a-fA-F0-9]{40})/;
   const address = stdout.match(regex)[1];

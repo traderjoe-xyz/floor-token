@@ -3,6 +3,5 @@ export interface ContractCreationArgs {
   chain: string;
   tokenName: string;
   tokenSymbol: string;
-  floorPrice: number;
-  binStep: number;
+  taxRate: number;
 }
