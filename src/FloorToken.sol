@@ -18,8 +18,7 @@ import {IFloorToken} from "./interfaces/IFloorToken.sol";
  * the floor price. On every transfer, the floor will be rebalanced if needed, that is if the amount of wNative
  * available in the pair contract allows to raise the floor by at least one bin.
  * WARNING: The floor mechanism only works if the tokens that are minted are only minted and added as liquidity
- * to the pair contract. If the tokens are minted and sent to an account after the first buy, the floor will not
- * be able to be rebalanced anymore, and it may revert.
+ * to the pair contract. If the tokens are minted and sent to an account, the floor mechanism will not work.
  */
 abstract contract FloorToken is Ownable2Step, IFloorToken {
     using Uint256x256Math for uint256;
