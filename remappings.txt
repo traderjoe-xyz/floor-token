@@ -3,3 +3,4 @@ forge-std/=lib/forge-std/src/
 openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/
 @openzeppelin/=lib/openzeppelin-contracts/
 layerzero/=lib/solidity-examples/contracts
+joe-v2/=lib/joe-v2/src/
