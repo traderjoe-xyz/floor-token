@@ -7,3 +7,6 @@
 [submodule "lib/solidity-examples"]
 	path = lib/solidity-examples
 	url = https://github.com/LayerZero-Labs/solidity-examples
+[submodule "lib/joe-v2"]
+	path = lib/joe-v2
+	url = https://github.com/traderjoe-xyz/joe-v2
