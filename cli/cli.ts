@@ -18,8 +18,8 @@ export default () => {
         },
       },
       {
-        type: "checkbox",
-        name: "chains",
+        type: "list",
+        name: "chain",
         message: "Select the chains you want to deploy to:",
         choices: [
           {
@@ -32,15 +32,8 @@ export default () => {
             name: "BNB Smart Chain",
           },
         ],
-        validate(answer) {
-          if (answer.length < 1) {
-            return "You must choose at least one chain.";
-          }
-
-          return true;
-        },
-        filter(val: string[]) {
-          return val.map((value) => value.toLowerCase().replace(/\s/g, "-"));
+        filter(val: string) {
+          return val.toLowerCase().replace(/\s/g, "-");
         },
       },
       {
@@ -55,15 +48,8 @@ export default () => {
       },
       {
         type: "number",
-        name: "floorPrice",
-        message: "What should be the floor price of the token? (in USD)",
-      },
-      {
-        type: "list",
-        name: "pairBinStep",
-        message: "Which bin step should have the LB pair?",
-        choices: [25, 50, 100],
-        default: 50,
+        name: "taxRate",
+        message: "What should be the tax rate of the token? (in %)",
       },
     ])
     .then((answers) => {
@@ -74,7 +60,7 @@ export default () => {
 const intro = () => {
   console.log(
     "\n\n" +
-      figlet.textSync("Floor Token", {
+      figlet.textSync("Potus", {
         font: "Basic",
         width: 120,
         whitespaceBreak: true,
