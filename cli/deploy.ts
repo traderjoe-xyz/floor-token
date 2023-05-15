@@ -1,25 +1,29 @@
-import { Wallet, ethers } from "ethers";
+import { ethers } from "ethers";
 import ora from "ora";
 import dotenv from "dotenv";
 import logSymbols from "log-symbols";
-import util from "node:util";
-import { exec } from "node:child_process";
 
 import { ContractCreationArgs } from "./types.js";
+import { getCoingeckoPrices } from "./utils/coingecko.js";
+import { getFloorBinId } from "./utils/lbPairMath.js";
+import { deployContract } from "./utils/foundry.js";
 
 import chainConfigs from "./chain-configs.json" assert { type: "json" };
 
-const execSync = util.promisify(exec);
 dotenv.config();
 
 class MultichainWallet {
   public chains: string[];
+  public chainConfig: Map<string, any>;
   public wallets: Map<string, ethers.Wallet>;
   public rpcs: Map<string, string>;
   public contractAddresses: Map<string, string>;
+  public nativeTokenPrices: Map<string, number>;
 
   constructor(chainType: string, chains: string[]) {
     this.chains = chains;
+    this.chainConfig = new Map<string, any>();
+    this.nativeTokenPrices = new Map<string, number>();
     this.wallets = new Map<string, ethers.Wallet>();
     this.rpcs = new Map<string, string>();
     this.contractAddresses = new Map<string, string>();
@@ -32,8 +36,21 @@ class MultichainWallet {
       const provider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
       const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
+      this.chainConfig.set(chain, chainConfig);
       this.wallets.set(chain, wallet);
       this.rpcs.set(chain, chainConfig.rpcUrl);
+    }
+  }
+
+  public async getNativeTokenPrices() {
+    const prices = await getCoingeckoPrices();
+
+    for (const chain of this.chains) {
+      const chainConfig = this.chainConfig.get(chain);
+
+      const nativeTokenPrice = prices[chainConfig.coingeckoTicker].usd;
+
+      this.nativeTokenPrices.set(chain, nativeTokenPrice);
     }
   }
 
@@ -113,6 +130,8 @@ export const deploy = async (deployArgs: ContractCreationArgs) => {
 
   await wallets.verifyBalances();
 
+  await wallets.getNativeTokenPrices();
+
   await wallets.deployTokenContracts(
     deployArgs.tokenName,
     deployArgs.tokenSymbol
@@ -121,25 +140,10 @@ export const deploy = async (deployArgs: ContractCreationArgs) => {
   if (deployArgs.taxRate > 0) {
     await wallets.setTaxRate(deployArgs.taxRate);
   }
-};
 
-const deployContract = async (
-  contractPath: string,
-  wallet: Wallet,
-  rpc: string,
-  constructorArgs?: string[]
-): Promise<string> => {
-  const constructorArgsString =
-    constructorArgs?.length > 0
-      ? `--constructor-args ${constructorArgs.join(" ")}`
-      : "";
+  const nativePrice = wallets.nativeTokenPrices.get(deployArgs.chain);
 
-  const { stdout } = await execSync(
-    `forge create ${contractPath} --private-key=${wallet.privateKey} --rpc-url=${rpc} --verify ${constructorArgsString}`
+  console.log(
+    getFloorBinId(deployArgs.floorPrice, nativePrice, deployArgs.pairBinStep)
   );
-
-  const regex = /Deployed to: (0x[a-fA-F0-9]{40})/;
-  const address = stdout.match(regex)[1];
-
-  return address;
 };

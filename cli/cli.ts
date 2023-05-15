@@ -51,6 +51,17 @@ export default () => {
         name: "taxRate",
         message: "What should be the tax rate of the token? (in %)",
       },
+      {
+        type: "number",
+        name: "floorPrice",
+        message: "What should be the floor price of the token? (in USD)",
+      },
+      {
+        type: "list",
+        name: "pairBinStep",
+        message: "What should be the bin step of the pair?",
+        choices: [25, 50, 100],
+      },
     ])
     .then((answers) => {
       deploy(answers);
