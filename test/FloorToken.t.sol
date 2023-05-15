@@ -20,7 +20,7 @@ contract TransferTaxFloorTokenTest is Test {
     MockFloorToken public token;
 
     function setUp() public {
-        vm.createSelectFork(vm.rpcUrl("avalanche"), 29905253);
+        vm.createSelectFork(StdChains.getChain("avalanche").rpcUrl, 29905253);
 
         token = new MockFloorToken("Floor", "FLOOR", address(this), wNative, lbFactory, initId, binStep, tokenPerBin);
         token.raiseRoof(nbBins);

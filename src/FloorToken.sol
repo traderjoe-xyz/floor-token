@@ -270,7 +270,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
         // Iterate over all the ids from the active bin to the floor bin, in reverse order
         uint256 id = activeId + 1;
-        for (; id > floorId;) {
+        while (id > floorId) {
             // Decrease the id prior to the calculation to avoid having to subtract 1 from the id in the calculations
             unchecked {
                 --id;
