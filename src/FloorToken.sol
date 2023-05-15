@@ -25,6 +25,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     using PriceHelper for uint24;
     using PackedUint128Math for bytes32;
 
+    IWNATIVE private immutable _wNative;
     ILBPair private immutable _pair;
     uint16 private immutable _binStep;
     uint256 private immutable _tokenPerBin;
@@ -46,6 +47,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     constructor(IWNATIVE wNative, ILBFactory lbFactory, uint24 activeId, uint16 binStep, uint256 tokenPerBin) {
         _binStep = binStep;
         _tokenPerBin = tokenPerBin;
+        _wNative = wNative;
 
         // Create the pair contract at `activeId - 1` to make sure no one can add `wNative` to the floor or above
         _pair = lbFactory.createLBPair(IERC20(address(this)), IERC20(wNative), activeId - 1, binStep);
@@ -359,16 +361,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
             mstore(shares, nbBins)
         }
 
-        // Burns the shares and send the wNative to the pair as we will add all the wNative to the new floor bin
-        _pair.burn(address(this), address(_pair), ids, shares);
-
-        // Encode the liquidity parameters for the new floor bin
-        bytes32[] memory liquidityParameters = new bytes32[](1);
-        liquidityParameters[0] = LiquidityConfigurations.encodeParams(0, uint64(1e18), uint24(newFloorId));
-
-        // Mint the liquidity to the pair contract, any left over will be sent to this contract
-        // todo Careful here as it could steal tokens sent by users
-        _pair.mint(address(this), liquidityParameters, address(this));
+        _safeRebalance(ids, shares, uint24(newFloorId));
 
         // Update the floor id
         _floorId = uint24(newFloorId);
@@ -376,6 +369,63 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         emit FloorRaised(newFloorId);
 
         return true;
+    }
+
+    /**
+     * @dev Helper function to rebalance the floor while making sure to not steal any wNative or tokens that was sent
+     * by users prior to the rebalance by users, for example during a swap or a liquidity addition.
+     * Note: This functions **only** works if the tokenX is this contract and the tokenY is the `_wNative`.
+     * @param ids The ids of the bins to burn.
+     * @param shares The shares to burn.
+     * @param newFloorId The new floor id.
+     */
+    function _safeRebalance(uint256[] memory ids, uint256[] memory shares, uint24 newFloorId) internal virtual {
+        // Get the previouw reserve of wNative
+        (uint256 reserveTokenBefore, uint256 reserveWNativeBefore) = _pair.getReserves();
+
+        // Burns the shares and send the wNative to the pair as we will add all the wNative to the new floor bin
+        _pair.burn(address(this), address(_pair), ids, shares);
+
+        // Get the current wNative balance of the pair contract (minus the protocol fees)
+        (, uint256 wNativeProtocolFees) = _pair.getProtocolFees();
+        uint256 wNativeBalanceSubProtocolFees = _wNative.balanceOf(address(_pair)) - wNativeProtocolFees;
+
+        // Get the new reserve of wNative
+        (uint256 reserveTokenAfter, uint256 reserveWNativeAfter) = _pair.getReserves();
+
+        // Make sure we don't burn any bins greater or equal to the active bin, as this might send some unexpected
+        // tokens to the pair contract
+        require(reserveTokenAfter == reserveTokenBefore, "FloorToken: token reserve changed");
+
+        // Calculate the delta amounts to get the ratio
+        uint256 deltaReserveWNative = reserveWNativeBefore - reserveWNativeAfter;
+        uint256 deltaWNativeBalance = wNativeBalanceSubProtocolFees - reserveWNativeAfter;
+
+        // Calculate the distrib, which is 1e18 if no wnative was in the pair contract, and the ratio between the
+        // previous wNative balance and the current one otherwise, rounded up. This is done to make sure that the
+        // rebalance doesn't steal any wNative that was sent to the pair contract by the users. This works because
+        // we conly add wNative, so any token that was sent to the pair prior to the rebalance will be sent back
+        // to the pair contract after the rebalance
+        uint256 distrib = deltaWNativeBalance > deltaReserveWNative
+            ? (deltaReserveWNative * 1e18 - 1) / deltaWNativeBalance + 1
+            : 1e18;
+
+        // Encode the liquidity parameters for the new floor bin
+        bytes32[] memory liquidityParameters = new bytes32[](1);
+        liquidityParameters[0] = LiquidityConfigurations.encodeParams(0, uint64(distrib), newFloorId);
+
+        // Mint the liquidity to the pair contract, any left over will be sent back to the pair contract as
+        // this would be user funds (this contains the wNative or the tokens that were sent to the pair contract
+        // prior to the rebalance)
+        (bytes32 amountsReceived, bytes32 amountsLeft,) = _pair.mint(address(this), liquidityParameters, address(_pair));
+
+        bytes32 amountsAdded = amountsReceived.sub(amountsLeft);
+        uint256 wNativeAmount = amountsAdded.decodeY();
+        require(
+            wNativeAmount == deltaWNativeBalance * distrib / 1e18 && wNativeAmount >= deltaReserveWNative
+                && amountsAdded.decodeX() == 0,
+            "FloorToken: broken invariant"
+        );
     }
 
     /**

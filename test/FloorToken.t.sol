@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import "forge-std/Test.sol";
 import "openzeppelin-contracts/utils/math/Math.sol";
 import {ERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
+import {ILBRouter} from "joe-v2/interfaces/ILBRouter.sol";
 
 import {FloorToken, IWNATIVE, ILBFactory, ILBPair, IERC20} from "src/FloorToken.sol";
 
@@ -12,6 +13,7 @@ contract TransferTaxFloorTokenTest is Test {
 
     IWNATIVE public constant wNative = IWNATIVE(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);
     ILBFactory public constant lbFactory = ILBFactory(0x8e42f2F4101563bF679975178e880FD87d3eFd4e);
+    ILBRouter public constant lbRouter = ILBRouter(0xb4315e873dBcf96Ffd0acd8EA43f689D8c20fB30);
     uint256 constant tokenPerBin = 100e18;
     uint24 constant initId = 1 << 23;
     uint16 constant binStep = 25;
@@ -203,6 +205,70 @@ contract TransferTaxFloorTokenTest is Test {
         (uint24 newFloorId3,) = token.range();
 
         assertEq(newFloorId3, newFloorId2, "test_Rebalance::9");
+    }
+
+    function test_RebalanceWhileAddingLiquidity() public {
+        address alice = address(1);
+        ILBPair lbPair = ILBPair(token.pair());
+
+        _swapNbBins(lbPair, false, 10);
+
+        deal(address(wNative), alice, 100_000e18);
+
+        vm.prank(alice);
+        wNative.transfer(address(lbPair), 100_000e18);
+
+        int256[] memory deltaIds = new int256[](3);
+        deltaIds[0] = -1;
+        deltaIds[1] = 0;
+        deltaIds[2] = 1;
+
+        uint256[] memory distributionX = new uint256[](3);
+        distributionX[0] = 0;
+        distributionX[1] = 0.5e18;
+        distributionX[2] = 0.5e18;
+
+        uint256[] memory distributionY = new uint256[](3);
+        distributionY[0] = 0.5e18;
+        distributionY[1] = 0.5e18;
+        distributionY[2] = 0;
+
+        ILBRouter.LiquidityParameters memory params = ILBRouter.LiquidityParameters({
+            tokenX: IERC20(address(token)),
+            tokenY: IERC20(address(wNative)),
+            binStep: binStep,
+            amountX: token.balanceOf(alice),
+            amountY: wNative.balanceOf(alice),
+            amountXMin: token.balanceOf(alice),
+            amountYMin: 100_000e18,
+            activeIdDesired: lbPair.getActiveId(),
+            idSlippage: 0,
+            deltaIds: deltaIds,
+            distributionX: distributionX,
+            distributionY: distributionY,
+            to: alice,
+            refundTo: alice,
+            deadline: block.timestamp
+        });
+
+        vm.startPrank(alice);
+        token.approve(address(lbRouter), type(uint256).max);
+        wNative.approve(address(lbRouter), type(uint256).max);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ILBRouter.LBRouter__AmountSlippageCaught.selector,
+                token.balanceOf(alice),
+                token.balanceOf(alice),
+                100_000e18,
+                99999999999999999939182
+            )
+        );
+        lbRouter.addLiquidity(params);
+
+        params.amountYMin = params.amountYMin * (1e18 - 1) / 1e18;
+        lbRouter.addLiquidity(params);
+        vm.stopPrank();
     }
 
     function _swapNbBins(ILBPair lbPair, bool swapForY, uint24 nbBin) internal {
