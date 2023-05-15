@@ -295,14 +295,14 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
             }
         }
 
-        // Make sure that the active id is striclty greater than the new floor id.
+        // Make sure that the active id is strictly greater than the new floor id.
         // If it is, force it to be the active id minus 1 to make sure we never pay the composition fee as then
         // the constraint on the distribution of the wNative reserves might be broken
         return activeId > id ? uint24(id) : activeId - 1;
     }
 
     /**
-     * @dev Rebalances the floor by removing the bins that are not needed anymore and addinf their wNative
+     * @dev Rebalances the floor by removing the bins that are not needed anymore and adding their wNative
      * reserves to the new floor bin.
      * @return Whether the floor was rebalanced or not.
      */
