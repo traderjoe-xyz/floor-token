@@ -405,9 +405,9 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         // previous wNative balance and the current one otherwise, rounded up. This is done to make sure that the
         // rebalance doesn't steal any wNative that was sent to the pair contract by the users. This works because
         // we conly add wNative, so any token that was sent to the pair prior to the rebalance will be sent back
-        // to the pair contract after the rebalance
+        // to the pair contract after the rebalance. This can't underflow as `deltaWNativeBalance > 0`
         uint256 distrib = deltaWNativeBalance > deltaReserveWNative
-            ? (deltaReserveWNative * 1e18 - 1) / deltaWNativeBalance + 1
+            ? (deltaReserveWNative * 1e18 + (deltaWNativeBalance - 1)) / deltaWNativeBalance
             : 1e18;
 
         // Encode the liquidity parameters for the new floor bin
