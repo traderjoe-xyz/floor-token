@@ -120,7 +120,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
     /**
      * @notice Force the floor to be rebalanced, in case it wasn't done automatically.
-     * @dev Reverts if the rebalance is paused or if no rebalance is needed.
+     * @dev This function can be called by anyone, but only if the rebalance is not paused and if the floor
+     * needs to be rebalanced.
      */
     function rebalanceFloor() public virtual override {
         require(!_rebalancePaused, "FloorToken: rebalance paused");
@@ -129,9 +130,13 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
     /**
      * @notice Raises the floor by `nbBins` bins. New tokens will be minted to the pair contract and directly
-     * added to new bins that weren't previously in the range.
+     * added to new bins that weren't previously in the range. This will not decrease the floor price as the
+     * tokens are minted are directly added to the pair contract, so the circulating supply is not increased.
      * @dev The new roof will be `roofId + nbBins`, if the roof wasn't already raised, the new roof will be
      * `floorId + nbBins - 1`. Only callable by the owner.
+     * This functions should not be called too often as it will increase the gas cost of the transfers, and
+     * might even make the transfers if the transaction runs out of gas. It is recommended to only call this
+     * function when the floor is close to the roof.
      * @param nbBins The number of bins to raise the floor by.
      */
     function raiseRoof(uint24 nbBins) public virtual override onlyOwner {
