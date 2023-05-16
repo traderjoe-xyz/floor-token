@@ -108,11 +108,16 @@ contract TransferTaxFloorTokenTest is Test {
             assertEq(share.mulDiv(binReserveY, totalShares), 0, "test_RaiseRoof::6");
         }
 
-        vm.expectRevert("FloorToken: invalid nbBins");
+        vm.expectRevert("FloorToken: zero bins");
         token.raiseRoof(0);
 
-        vm.expectRevert("FloorToken: invalid nbBins");
+        vm.expectRevert("FloorToken: new roof too high");
         token.raiseRoof(type(uint24).max - roofId);
+
+        vm.expectRevert("FloorToken: new roof too high");
+        token.raiseRoof(100 - (roofId - floorId) + 1);
+
+        token.raiseRoof(100 - (roofId - floorId));
     }
 
     function test_RebalanceWithHighFees() public {
@@ -317,12 +322,20 @@ contract MockFloorToken is ERC20, FloorToken {
         _transferOwnership(owner);
     }
 
+    function balanceOf(address account) public view override(ERC20, FloorToken) returns (uint256) {
+        return ERC20.balanceOf(account);
+    }
+
     function totalSupply() public view override(ERC20, FloorToken) returns (uint256) {
         return ERC20.totalSupply();
     }
 
     function _mint(address account, uint256 amount) internal override(ERC20, FloorToken) {
         ERC20._mint(account, amount);
+    }
+
+    function _burn(address account, uint256 amount) internal override(ERC20, FloorToken) {
+        ERC20._burn(account, amount);
     }
 
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal override(ERC20, FloorToken) {
