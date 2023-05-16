@@ -380,7 +380,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @param newFloorId The new floor id.
      */
     function _safeRebalance(uint256[] memory ids, uint256[] memory shares, uint24 newFloorId) internal virtual {
-        // Get the previouw reserve of wNative
+        // Get the previous reserve of wNative
         (uint256 reserveTokenBefore, uint256 reserveWNativeBefore) = _pair.getReserves();
 
         // Burns the shares and send the wNative to the pair as we will add all the wNative to the new floor bin
@@ -404,8 +404,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         // Calculate the distrib, which is 1e18 if no wnative was in the pair contract, and the ratio between the
         // previous wNative balance and the current one otherwise, rounded up. This is done to make sure that the
         // rebalance doesn't steal any wNative that was sent to the pair contract by the users. This works because
-        // we conly add wNative, so any token that was sent to the pair prior to the rebalance will be sent back
-        // to the pair contract after the rebalance. This can't underflow as `deltaWNativeBalance > 0`
+        // we only add wNative, so any token that was sent to the pair prior to the rebalance will be sent back
+        // to the pair contract after the rebalance. This can't underflow as `deltaWNativeBalance > 0`.
         uint256 distrib = deltaWNativeBalance > deltaReserveWNative
             ? (deltaReserveWNative * 1e18 + (deltaWNativeBalance - 1)) / deltaWNativeBalance
             : 1e18;
