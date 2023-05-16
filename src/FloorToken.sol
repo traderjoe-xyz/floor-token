@@ -380,7 +380,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @param newFloorId The new floor id.
      */
     function _safeRebalance(uint256[] memory ids, uint256[] memory shares, uint24 newFloorId) internal virtual {
-        // Get the previous reserve of wNative
+        // Get the previous reserves of the pair contract
         (uint256 reserveTokenBefore, uint256 reserveWNativeBefore) = _pair.getReserves();
 
         // Burns the shares and send the wNative to the pair as we will add all the wNative to the new floor bin
@@ -390,7 +390,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         (, uint256 wNativeProtocolFees) = _pair.getProtocolFees();
         uint256 wNativeBalanceSubProtocolFees = _wNative.balanceOf(address(_pair)) - wNativeProtocolFees;
 
-        // Get the new reserve of wNative
+        // Get the new reserves of the pair contract
         (uint256 reserveTokenAfter, uint256 reserveWNativeAfter) = _pair.getReserves();
 
         // Make sure we don't burn any bins greater or equal to the active bin, as this might send some unexpected
