@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {ILBFactory, ILBPair, IERC20} from "joe-v2/interfaces/ILBFactory.sol";
 import {IWNATIVE} from "joe-v2/interfaces/IWNATIVE.sol";
 import {LiquidityConfigurations} from "joe-v2/libraries/math/LiquidityConfigurations.sol";
-import {PriceHelper, Uint256x256Math} from "joe-v2/libraries/PriceHelper.sol";
+import {PriceHelper, Uint256x256Math, Constants} from "joe-v2/libraries/PriceHelper.sol";
 import {PackedUint128Math} from "joe-v2/libraries/math/PackedUint128Math.sol";
 import {Ownable2Step} from "openzeppelin-contracts/access/Ownable2Step.sol";
 
@@ -288,13 +288,13 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
             uint256 wNativeReserve = wNativeReserves[id - floorId];
 
             // Calculate the amount of wNative needed to buy all the tokens in circulation
-            uint256 wNativeNeeded = tokenInCirculation.mulShiftRoundUp(price, 128);
+            uint256 wNativeNeeded = tokenInCirculation.mulShiftRoundUp(price, Constants.SCALE_OFFSET);
 
             if (wNativeNeeded > wNativeAvailable) {
                 // If the amount of wNative needed is greater than the amount of wNative available, we need to
                 // keep iterating over the bins
                 wNativeAvailable -= wNativeReserve;
-                tokenInCirculation -= wNativeReserve.shiftDivRoundDown(128, price);
+                tokenInCirculation -= wNativeReserve.shiftDivRoundDown(Constants.SCALE_OFFSET, price);
             } else {
                 // If the amount of wNative needed is lower than the amount of wNative available, we found the
                 // new floor id and we can stop iterating
@@ -407,8 +407,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         // we only add wNative, so any token that was sent to the pair prior to the rebalance will be sent back
         // to the pair contract after the rebalance. This can't underflow as `deltaWNativeBalance > 0`.
         uint256 distrib = deltaWNativeBalance > deltaReserveWNative
-            ? (deltaReserveWNative * 1e18 + (deltaWNativeBalance - 1)) / deltaWNativeBalance
-            : 1e18;
+            ? (deltaReserveWNative * Constants.PRECISION + (deltaWNativeBalance - 1)) / deltaWNativeBalance
+            : Constants.PRECISION;
 
         // Encode the liquidity parameters for the new floor bin
         bytes32[] memory liquidityParameters = new bytes32[](1);
@@ -422,7 +422,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         bytes32 amountsAdded = amountsReceived.sub(amountsLeft);
         uint256 wNativeAmount = amountsAdded.decodeY();
         require(
-            wNativeAmount == deltaWNativeBalance * distrib / 1e18 && wNativeAmount >= deltaReserveWNative
+            wNativeAmount == deltaWNativeBalance * distrib / Constants.PRECISION && wNativeAmount >= deltaReserveWNative
                 && amountsAdded.decodeX() == 0,
             "FloorToken: broken invariant"
         );
