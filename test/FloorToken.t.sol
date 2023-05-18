@@ -108,11 +108,73 @@ contract TransferTaxFloorTokenTest is Test {
             assertEq(share.mulDiv(binReserveY, totalShares), 0, "test_RaiseRoof::6");
         }
 
-        vm.expectRevert("FloorToken: invalid nbBins");
+        vm.expectRevert("FloorToken: zero bins");
         token.raiseRoof(0);
 
-        vm.expectRevert("FloorToken: invalid nbBins");
+        vm.expectRevert("FloorToken: new roof too high");
         token.raiseRoof(type(uint24).max - roofId);
+
+        vm.expectRevert("FloorToken: new roof too high");
+        token.raiseRoof(100 - (roofId - floorId) + 1);
+
+        token.raiseRoof(100 - (roofId - floorId));
+    }
+
+    function test_RaiseRoofWithTokenInThePair() public {
+        ILBPair pair = ILBPair(token.pair());
+
+        (uint256 tokenReserves, uint256 wNativeReserves) = pair.getReserves();
+        (uint256 tokenProtocolFees, uint256 wNativeProtocolFees) = pair.getProtocolFees();
+
+        uint256 amount = 1;
+
+        deal(address(token), address(this), amount);
+        deal(address(wNative), address(this), amount);
+
+        token.transfer(address(pair), amount);
+        wNative.transfer(address(pair), amount);
+
+        token.raiseRoof(10);
+
+        uint256 tokenBalance = token.balanceOf(address(pair));
+        uint256 wNativeBalance = wNative.balanceOf(address(pair));
+
+        assertEq(
+            tokenBalance - (tokenReserves + tokenProtocolFees),
+            10 * tokenPerBin + amount,
+            "test_RaiseRoofWithTokenInThePair::1"
+        );
+        assertEq(
+            wNativeBalance - (wNativeReserves + wNativeProtocolFees), amount, "test_RaiseRoofWithTokenInThePair::2"
+        );
+
+        (tokenReserves, wNativeReserves) = pair.getReserves();
+        (tokenProtocolFees, wNativeProtocolFees) = pair.getProtocolFees();
+
+        amount = 10 * tokenPerBin + 1;
+
+        deal(address(token), address(this), amount);
+        deal(address(wNative), address(this), amount);
+
+        token.transfer(address(pair), amount);
+        wNative.transfer(address(pair), amount);
+
+        token.raiseRoof(10);
+
+        tokenBalance = token.balanceOf(address(pair));
+        wNativeBalance = wNative.balanceOf(address(pair));
+
+        // Increase amount by 1, because we already have 1 token in the pair from the previous transfer
+        amount += 1;
+
+        assertEq(
+            tokenBalance - (tokenReserves + tokenProtocolFees),
+            10 * tokenPerBin + amount,
+            "test_RaiseRoofWithTokenInThePair::3"
+        );
+        assertEq(
+            wNativeBalance - (wNativeReserves + wNativeProtocolFees), amount, "test_RaiseRoofWithTokenInThePair::4"
+        );
     }
 
     function test_RebalanceWithHighFees() public {
@@ -215,8 +277,11 @@ contract TransferTaxFloorTokenTest is Test {
 
         deal(address(wNative), alice, 100_000e18);
 
-        vm.prank(alice);
+        vm.startPrank(alice);
         wNative.transfer(address(lbPair), 100_000e18);
+
+        // Deal the token directly to the pair to make sure it doesn't trigger any callback
+        deal(address(token), address(lbPair), token.balanceOf(address(lbPair)) + 100_000e18);
 
         int256[] memory deltaIds = new int256[](3);
         deltaIds[0] = -1;
@@ -237,9 +302,9 @@ contract TransferTaxFloorTokenTest is Test {
             tokenX: IERC20(address(token)),
             tokenY: IERC20(address(wNative)),
             binStep: binStep,
-            amountX: token.balanceOf(alice),
-            amountY: wNative.balanceOf(alice),
-            amountXMin: token.balanceOf(alice),
+            amountX: 0,
+            amountY: 0,
+            amountXMin: 100_000e18,
             amountYMin: 100_000e18,
             activeIdDesired: lbPair.getActiveId(),
             idSlippage: 0,
@@ -258,8 +323,8 @@ contract TransferTaxFloorTokenTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 ILBRouter.LBRouter__AmountSlippageCaught.selector,
-                token.balanceOf(alice),
-                token.balanceOf(alice),
+                100_000e18,
+                100_000e18,
                 100_000e18,
                 99999999999999999939182
             )
@@ -317,12 +382,20 @@ contract MockFloorToken is ERC20, FloorToken {
         _transferOwnership(owner);
     }
 
+    function balanceOf(address account) public view override(ERC20, FloorToken) returns (uint256) {
+        return ERC20.balanceOf(account);
+    }
+
     function totalSupply() public view override(ERC20, FloorToken) returns (uint256) {
         return ERC20.totalSupply();
     }
 
     function _mint(address account, uint256 amount) internal override(ERC20, FloorToken) {
         ERC20._mint(account, amount);
+    }
+
+    function _burn(address account, uint256 amount) internal override(ERC20, FloorToken) {
+        ERC20._burn(account, amount);
     }
 
     function _beforeTokenTransfer(address from, address to, uint256 amount) internal override(ERC20, FloorToken) {

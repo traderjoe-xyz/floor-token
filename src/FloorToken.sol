@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {ILBFactory, ILBPair, IERC20} from "joe-v2/interfaces/ILBFactory.sol";
 import {IWNATIVE} from "joe-v2/interfaces/IWNATIVE.sol";
 import {LiquidityConfigurations} from "joe-v2/libraries/math/LiquidityConfigurations.sol";
-import {PriceHelper, Uint256x256Math} from "joe-v2/libraries/PriceHelper.sol";
+import {PriceHelper, Uint256x256Math, Constants} from "joe-v2/libraries/PriceHelper.sol";
 import {PackedUint128Math} from "joe-v2/libraries/math/PackedUint128Math.sol";
 import {Ownable2Step} from "openzeppelin-contracts/access/Ownable2Step.sol";
 
@@ -24,6 +24,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     using Uint256x256Math for uint256;
     using PriceHelper for uint24;
     using PackedUint128Math for bytes32;
+
+    uint256 private constant _MAX_NUM_BINS = 100;
 
     IWNATIVE private immutable _wNative;
     ILBPair private immutable _pair;
@@ -114,6 +116,14 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     }
 
     /**
+     * @notice Returns the amount of tokens owned by `account`.
+     * @dev This function needs to be overriden by the child contract.
+     * @param account The account to get the balance of.
+     * @return The amount of tokens owned by `account`.
+     */
+    function balanceOf(address account) public view virtual override returns (uint256);
+
+    /**
      * @notice Returns the total supply of the token.
      * @dev This function needs to be overriden by the child contract.
      * @return The total supply of the token.
@@ -142,36 +152,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @param nbBins The number of bins to raise the floor by.
      */
     function raiseRoof(uint24 nbBins) public virtual override onlyOwner {
-        uint24 roofId = _roofId;
-
-        require(nbBins > 0 && uint256(roofId) + nbBins < type(uint24).max, "FloorToken: invalid nbBins");
-
-        // Calculate the next id, if the roof wasn't already raised, the next id will be `floorId`
-        uint256 nextId = roofId == 0 ? _floorId : roofId + 1;
-
-        // Calculate the amount of tokens to mint and the share per bin
-        uint256 tokenAmount = _tokenPerBin * nbBins;
-        uint64 sharePerBin = uint64(1e18) / nbBins;
-
-        // Encode the liquidity parameters for each bin
-        bytes32[] memory liquidityParameters = new bytes32[](nbBins);
-        for (uint256 i; i < nbBins;) {
-            liquidityParameters[i] = LiquidityConfigurations.encodeParams(sharePerBin, 0, uint24(nextId + i));
-
-            unchecked {
-                ++i;
-            }
-        }
-
-        // Mint the tokens to the pair contract and mint the liquidity
-        _mint(address(_pair), tokenAmount);
-        _pair.mint(address(this), liquidityParameters, address(this));
-
-        // Update the roof id
-        uint256 newRoofId = nextId + nbBins - 1;
-        _roofId = uint24(newRoofId);
-
-        emit RoofRaised(newRoofId);
+        _raiseRoof(_roofId, _floorId, nbBins);
     }
 
     /**
@@ -288,13 +269,13 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
             uint256 wNativeReserve = wNativeReserves[id - floorId];
 
             // Calculate the amount of wNative needed to buy all the tokens in circulation
-            uint256 wNativeNeeded = tokenInCirculation.mulShiftRoundUp(price, 128);
+            uint256 wNativeNeeded = tokenInCirculation.mulShiftRoundUp(price, Constants.SCALE_OFFSET);
 
             if (wNativeNeeded > wNativeAvailable) {
                 // If the amount of wNative needed is greater than the amount of wNative available, we need to
                 // keep iterating over the bins
                 wNativeAvailable -= wNativeReserve;
-                tokenInCirculation -= wNativeReserve.shiftDivRoundDown(128, price);
+                tokenInCirculation -= wNativeReserve.shiftDivRoundDown(Constants.SCALE_OFFSET, price);
             } else {
                 // If the amount of wNative needed is lower than the amount of wNative available, we found the
                 // new floor id and we can stop iterating
@@ -380,7 +361,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @param newFloorId The new floor id.
      */
     function _safeRebalance(uint256[] memory ids, uint256[] memory shares, uint24 newFloorId) internal virtual {
-        // Get the previous reserve of wNative
+        // Get the previous reserves of the pair contract
         (uint256 reserveTokenBefore, uint256 reserveWNativeBefore) = _pair.getReserves();
 
         // Burns the shares and send the wNative to the pair as we will add all the wNative to the new floor bin
@@ -390,7 +371,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         (, uint256 wNativeProtocolFees) = _pair.getProtocolFees();
         uint256 wNativeBalanceSubProtocolFees = _wNative.balanceOf(address(_pair)) - wNativeProtocolFees;
 
-        // Get the new reserve of wNative
+        // Get the new reserves of the pair contract
         (uint256 reserveTokenAfter, uint256 reserveWNativeAfter) = _pair.getReserves();
 
         // Make sure we don't burn any bins greater or equal to the active bin, as this might send some unexpected
@@ -407,8 +388,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         // we only add wNative, so any token that was sent to the pair prior to the rebalance will be sent back
         // to the pair contract after the rebalance. This can't underflow as `deltaWNativeBalance > 0`.
         uint256 distrib = deltaWNativeBalance > deltaReserveWNative
-            ? (deltaReserveWNative * 1e18 + (deltaWNativeBalance - 1)) / deltaWNativeBalance
-            : 1e18;
+            ? (deltaReserveWNative * Constants.PRECISION + (deltaWNativeBalance - 1)) / deltaWNativeBalance
+            : Constants.PRECISION;
 
         // Encode the liquidity parameters for the new floor bin
         bytes32[] memory liquidityParameters = new bytes32[](1);
@@ -422,10 +403,78 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         bytes32 amountsAdded = amountsReceived.sub(amountsLeft);
         uint256 wNativeAmount = amountsAdded.decodeY();
         require(
-            wNativeAmount == deltaWNativeBalance * distrib / 1e18 && wNativeAmount >= deltaReserveWNative
+            wNativeAmount == deltaWNativeBalance * distrib / Constants.PRECISION && wNativeAmount >= deltaReserveWNative
                 && amountsAdded.decodeX() == 0,
             "FloorToken: broken invariant"
         );
+    }
+
+    /**
+     * @dev Raises the roof by `nbBins` bins. New tokens will be minted to the pair contract and directly
+     * added to new bins that weren't previously in the range.
+     * This will revert if the difference between the new roof id and the floor id is greater than the maximum
+     * number of bins or if the current active bin is above the current roof id.
+     * @param roofId The id of the roof bin.
+     * @param floorId The id of the floor bin.
+     * @param nbBins The number of bins to raise the roof by.
+     */
+    function _raiseRoof(uint24 roofId, uint24 floorId, uint24 nbBins) internal virtual {
+        require(nbBins > 0, "FloorToken: zero bins");
+        require(roofId == 0 || _pair.getActiveId() <= roofId, "FloorToken: active bin above roof");
+
+        // Calculate the next id, if the roof wasn't already raised, the next id will be `floorId`
+        uint256 nextId = roofId == 0 ? floorId : roofId + 1;
+
+        // Calculate the new roof id
+        uint256 newRoofId = nextId + nbBins - 1;
+        require(newRoofId - floorId <= _MAX_NUM_BINS && newRoofId <= type(uint24).max, "FloorToken: new roof too high");
+
+        // Calculate the amount of tokens to mint and the share per bin
+        uint64 sharePerBin = uint64(Constants.PRECISION) / nbBins;
+        uint256 tokenAmount = _tokenPerBin * nbBins;
+
+        // Calculate the exact amount of tokens to mint to make sure that the amount of tokens in circulation
+        // is not increased
+        tokenAmount = (tokenAmount * sharePerBin / Constants.PRECISION) * nbBins;
+
+        // Encode the liquidity parameters for each bin
+        bytes32[] memory liquidityParameters = new bytes32[](nbBins);
+        for (uint256 i; i < nbBins;) {
+            liquidityParameters[i] = LiquidityConfigurations.encodeParams(sharePerBin, 0, uint24(nextId + i));
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        // Get the current reserves of the pair contract
+        (uint256 tokenReserve,) = _pair.getReserves();
+        (uint256 tokenProtocolFees,) = _pair.getProtocolFees();
+
+        // Calculate the amount of tokens that are owned by the pair contract as liquidity
+        uint256 tokenBalanceSubProtocolFees = balanceOf(address(_pair)) - tokenProtocolFees;
+
+        // Calculate the amount of tokens that were sent to the pair contract waiting to be added as liquidity or
+        // swapped for wNative.
+        uint256 previousBalance = tokenBalanceSubProtocolFees - tokenReserve;
+
+        // Mint or burn the tokens to make sure that the amount of tokens that will be added as liquidity is
+        // exactly `tokenAmount`.
+        unchecked {
+            if (previousBalance > tokenAmount) _burn(address(_pair), previousBalance - tokenAmount);
+            else if (tokenAmount > previousBalance) _mint(address(_pair), tokenAmount - previousBalance);
+        }
+
+        // Mint the tokens to the pair contract and mint the liquidity
+        _pair.mint(address(this), liquidityParameters, address(_pair));
+
+        // Mint the previous balance to the pair contract to make sure
+        if (previousBalance > 0) _mint(address(_pair), previousBalance);
+
+        // Update the roof id
+        _roofId = uint24(newRoofId);
+
+        emit RoofRaised(newRoofId);
     }
 
     /**
@@ -444,9 +493,17 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
     /**
      * @dev Mint tokens to an account.
-     * This function needs to be overriden by the child contract.
+     * This function needs to be overriden by the child contract and should not trigger any callback for safety.
      * @param account The address of the account to mint tokens to.
      * @param amount The amount of tokens to mint.
      */
     function _mint(address account, uint256 amount) internal virtual;
+
+    /**
+     * @dev Burn tokens from an account.
+     * This function needs to be overriden by the child contract and should not trigger any callback for safety.
+     * @param account The address of the account to burn tokens from.
+     * @param amount The amount of tokens to burn.
+     */
+    function _burn(address account, uint256 amount) internal virtual;
 }
