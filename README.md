@@ -36,20 +36,26 @@ The `Floor Bin` is the bin that represents the `floor price`, i.e. the lowest pr
 TODO
 
 ### Install
-TODO
 
-### Commands
-TODO
+```
+# (optional) for macosx
+$ brew install libusb
 
-## [WIP] Developing your own contracts
-TODO
+# install foundry
+$ curl -L https://foundry.paradigm.xyz | bash
+$ foundryup
 
-### Install
-TODO
+# install package
+$ git clone git@github.com:traderjoe-xyz/floor-token.git
+$ forge install
+$ forge build
+```
 
-### Tests
-TODO
+### Testing
 
+```
+$ forge test
+```
 
 ## License
 
