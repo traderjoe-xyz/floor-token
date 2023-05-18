@@ -208,4 +208,24 @@ contract TransferTaxTokenTest is Test {
         assertEq(token.balanceOf(to), amountAfterTax1 + amount2, "test_TransferFuzzing::5");
         assertEq(token.balanceOf(address(this)), tax1, "test_TransferFuzzing::6");
     }
+
+    function test_SelfTransferNoTax() public {
+        token.setTaxRecipient(address(this));
+        token.setTaxRate(1e18); // 100%
+
+        deal(address(token), address(1), 100);
+
+        vm.prank(address(1));
+        token.transfer(address(1), 100);
+
+        assertEq(token.balanceOf(address(1)), 100, "test_SelfTransferNoTax::1");
+        assertEq(token.balanceOf(address(this)), 0, "test_SelfTransferNoTax::2");
+
+        vm.prank(address(1));
+        token.transfer(address(2), 100);
+
+        assertEq(token.balanceOf(address(1)), 0, "test_SelfTransferNoTax::3");
+        assertEq(token.balanceOf(address(2)), 0, "test_SelfTransferNoTax::4");
+        assertEq(token.balanceOf(address(this)), 100, "test_SelfTransferNoTax::5");
+    }
 }

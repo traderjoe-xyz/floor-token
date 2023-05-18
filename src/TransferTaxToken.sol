@@ -154,7 +154,7 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
      * @param amount The amount to transfer.
      */
     function _transfer(address sender, address recipient, uint256 amount) internal virtual override {
-        if (amount > 0) {
+        if (sender != recipient && amount > 0) {
             if (_excludedFromTax[sender] || _excludedFromTax[recipient]) {
                 super._transfer(sender, recipient, amount);
             } else {
