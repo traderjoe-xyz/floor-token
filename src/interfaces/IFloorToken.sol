@@ -24,6 +24,8 @@ interface IFloorToken {
 
     function calculateNewFloorId() external view returns (uint24);
 
+    function balanceOf(address account) external view returns (uint256);
+
     function totalSupply() external view returns (uint256);
 
     function rebalanceFloor() external;
