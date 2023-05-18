@@ -33,7 +33,7 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
     mapping(address => bool) private _excludedFromTax;
 
     /**
-     * @notice Constructor that initializes the token's name, symbol and initial supply.
+     * @notice Constructor that initializes the token's name and symbol.
      * @dev The token is minted to the `owner`.
      * @param name The name of the token.
      * @param symbol The symbol of the token.
