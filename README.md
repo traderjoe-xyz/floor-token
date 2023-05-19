@@ -32,8 +32,17 @@ The `Floor Bin` is the bin that represents the `floor price`, i.e. the lowest pr
 
 *This concept was introduced by [White Lotus](https://docs.thewhitelotus.xyz/).*
 
+
 ## [WIP] How to use CLI
 TODO
+
+
+## [WIP] How to use SDK
+TODO
+
+## How to contribute to this repo
+
+PRs are welcome, please include tests. 
 
 ### Install
 
