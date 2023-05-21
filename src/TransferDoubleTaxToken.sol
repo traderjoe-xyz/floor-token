@@ -107,16 +107,10 @@ contract TransferDoubleTaxToken is TransferTaxToken, ITransferDoubleTaxToken {
         virtual
         override
     {
-        address secondTaxRecipient_ = secondTaxRecipient();
+        uint256 amountForSecondTaxRecipient = totalTaxAmount.mulDiv(shareForSecondTaxRecipient(), _PRECISION);
+        uint256 amountForFirstTaxRecipient = totalTaxAmount - amountForSecondTaxRecipient;
 
-        if (secondTaxRecipient_ != firstTaxRecipient) {
-            uint256 amountForSecondTaxRecipient = totalTaxAmount.mulDiv(shareForSecondTaxRecipient(), _PRECISION);
-
-            totalTaxAmount -= amountForSecondTaxRecipient;
-
-            super._transferTaxAmount(sender, secondTaxRecipient_, amountForSecondTaxRecipient);
-        }
-
-        super._transferTaxAmount(sender, firstTaxRecipient, totalTaxAmount);
+        super._transferTaxAmount(sender, secondTaxRecipient(), amountForSecondTaxRecipient);
+        super._transferTaxAmount(sender, firstTaxRecipient, amountForFirstTaxRecipient);
     }
 }
