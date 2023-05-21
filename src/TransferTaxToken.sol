@@ -33,7 +33,7 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
     mapping(address => bool) private _excludedFromTax;
 
     /**
-     * @notice Constructor that initializes the token's name, symbol and initial supply.
+     * @notice Constructor that initializes the token's name and symbol.
      * @dev The token is minted to the `owner`.
      * @param name The name of the token.
      * @param symbol The symbol of the token.
@@ -112,8 +112,6 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
      * @param newTaxRecipient The new transfer tax recipient.
      */
     function _setTaxRecipient(address newTaxRecipient) internal virtual {
-        require(newTaxRecipient != address(0), "TransferTaxToken: zero address");
-
         _taxRecipient = newTaxRecipient;
 
         emit TaxRecipientSet(newTaxRecipient);
@@ -124,7 +122,6 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
      * @param newTaxRate The new transfer tax rate.
      */
     function _setTaxRate(uint256 newTaxRate) internal virtual {
-        require(_taxRecipient != address(0), "TransferTaxToken: tax recipient not set");
         require(newTaxRate <= _PRECISION, "TransferTaxToken: tax rate exceeds 100%");
 
         // SafeCast is not needed here since the tax rate is bound by PRECISION, which is strictly less than 2**96.
@@ -154,16 +151,30 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
      * @param amount The amount to transfer.
      */
     function _transfer(address sender, address recipient, uint256 amount) internal virtual override {
-        if (amount > 0) {
-            if (_excludedFromTax[sender] || _excludedFromTax[recipient]) {
+        if (sender != recipient && amount > 0) {
+            if (excludedFromTax(sender) || excludedFromTax(recipient)) {
                 super._transfer(sender, recipient, amount);
             } else {
-                uint256 taxAmount = amount.mulDiv(_taxRate, _PRECISION);
+                uint256 taxAmount = amount.mulDiv(taxRate(), _PRECISION);
                 uint256 amountAfterTax = amount - taxAmount;
 
-                if (taxAmount > 0) super._transfer(sender, _taxRecipient, taxAmount);
+                _transferTaxAmount(sender, taxRecipient(), taxAmount);
                 if (amountAfterTax > 0) super._transfer(sender, recipient, amountAfterTax);
             }
+        }
+    }
+
+    /**
+     * @dev Handles the transfer of the `taxAmount` to the `recipient`.
+     * If the `recipient` is the zero address, the `taxAmount` is instead burned.
+     * @param sender The sender address.
+     * @param recipient The tax recipient address (or zero address if burn).
+     * @param taxAmount The amount to transfer as tax.
+     */
+    function _transferTaxAmount(address sender, address recipient, uint256 taxAmount) internal virtual {
+        if (taxAmount > 0) {
+            if (recipient == address(0)) _burn(sender, taxAmount);
+            else super._transfer(sender, recipient, taxAmount);
         }
     }
 }
