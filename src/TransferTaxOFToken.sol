@@ -18,7 +18,6 @@ import {ITransferTaxOFToken} from "./interfaces/ITransferTaxOFToken.sol";
 contract TransferTaxOFToken is OFTCore, TransferTaxToken, ITransferTaxOFToken {
     /**
      * @notice Constructor that initializes the token's name, symbol, initial supply and the OFT endpoint.
-     * @dev The token is minted to the `owner`.
      * @param name The name of the token.
      * @param symbol The symbol of the token.
      * @param owner The owner of the token.
