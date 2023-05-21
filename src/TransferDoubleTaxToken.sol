@@ -14,7 +14,6 @@ import {ITransferDoubleTaxToken, IERC165} from "./interfaces/ITransferDoubleTaxT
  * The tax is deducted from the amount before the transfer and sent to the tax recipient.
  * The tax recipients and tax rate can be changed by the owner, as well as the exclusion status of accounts from tax.
  * The second recipient will receive fees according to the share set by the owner.
- * The token will mint the initial supply to the owner.
  */
 contract TransferDoubleTaxToken is TransferTaxToken, ITransferDoubleTaxToken {
     using Math for uint256;
