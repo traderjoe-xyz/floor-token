@@ -26,7 +26,6 @@ contract TransferDoubleTaxToken is TransferTaxToken, ITransferDoubleTaxToken {
 
     /**
      * @notice Constructor that initializes the token's name and symbol.
-     * @dev The token is minted to the `owner`.
      * @param name The name of the token.
      * @param symbol The symbol of the token.
      * @param owner The owner of the token.
