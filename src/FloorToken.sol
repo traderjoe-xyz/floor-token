@@ -107,6 +107,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     function calculateNewFloorId() public view virtual override returns (uint24) {
         uint24 floorId = _floorId;
         uint24 activeId = _pair.getActiveId();
+
         (uint256 totalTokenInPair, uint256 totalWNativeInPair,, uint256[] memory wNativeReserves) =
             _getAmountsInPair(floorId, activeId, _roofId);
 
@@ -215,7 +216,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
             (uint256 binReserveX, uint256 binReserveY) = _pair.getBin(uint24(id));
             uint256 totalShares = _pair.totalSupply(id);
 
-            if (totalShares > 0) {
+            // The check for totalShares is implicit, as `totalShares >= share`
+            if (share > 0) {
                 // Calculate the amounts of tokens and wNative owned by this contract and that were added as liquidity
                 uint256 reserveX = binReserveX > 0 ? share.mulDivRoundDown(binReserveX, totalShares) : 0;
                 uint256 reserveY = binReserveY > 0 ? share.mulDivRoundDown(binReserveY, totalShares) : 0;
@@ -285,7 +287,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
         // Make sure that the active id is strictly greater than the new floor id.
         // If it is, force it to be the active id minus 1 to make sure we never pay the composition fee as then
-        // the constraint on the distribution of the wNative reserves might be broken
+        // the constraint on the distribution of the wNative reserves might be broken. `activeId - 1` is at least
+        // equal or greater than `floorId` as the first check ensures that `activeId > floorId`
         return activeId > id ? uint24(id) : activeId - 1;
     }
 
@@ -299,9 +302,11 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         uint24 floorId = _floorId;
         uint24 roofId = _roofId;
 
-        // If the liquidity was not initialized or if the floor is already at the active bin or above,
-        // no rebalance is needed
-        if (roofId == 0 || floorId >= activeId) return false;
+        // If the floor is already at the active bin minus one or above, no rebalance is needed.
+        // We do `floorId + 1` because if the `activeId = floorId + 1`, the rebalance is not doable because
+        // of the composition fee, so in order to raise the floor, the activeId has to be at least equal
+        // or greater than `floorId + 2`
+        if (uint256(floorId) + 1 >= activeId) return false;
 
         // Get the amounts of tokens and wNative that are in the pair contract, as well as the shares and
         // wNative reserves owned for each bin
@@ -312,7 +317,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
             uint256[] memory wNativeReserves
         ) = _getAmountsInPair(floorId, activeId, roofId);
 
-        // Calculate the amount of tokens in circulation
+        // Calculate the amount of tokens in circulation, which is the total supply minus the tokens that are
+        // in the pair.
         uint256 tokenInCirculation = totalSupply() - totalTokenInPair;
 
         // Calculate the new floor id
