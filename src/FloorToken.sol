@@ -18,6 +18,7 @@ import {IFloorToken} from "./interfaces/IFloorToken.sol";
  * available in the pair contract allows to raise the floor by at least one bin.
  * WARNING: The floor mechanism only works if the tokens that are minted are only minted and added as liquidity
  * to the pair contract. If the tokens are minted and sent to an account, the floor mechanism will not work.
+ * The order of the tokens should never be changed.
  */
 abstract contract FloorToken is Ownable2Step, IFloorToken {
     using Uint256x256Math for uint256;
@@ -31,7 +32,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     IERC20 private immutable _tokenY;
     ILBPair private immutable _pair;
     uint16 private immutable _binStep;
-    uint256 private immutable _tokenPerBin;
+    uint256 private immutable _floorPerBin;
 
     uint24 private _floorId;
     uint24 private _roofId;
@@ -56,11 +57,11 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @param activeId The id of the active bin, this is the price floor, calculated as:
      * `(1 + binStep / 10000) ^ (activeId - 2^23)`
      * @param binStep The step between each bin, in basis points.
-     * @param tokenPerBin The amount of tokens that will be minted to the pair contract for each bin.
+     * @param floorPerBin The amount of floor token that will be minted to the pair contract for each bin.
      */
-    constructor(IERC20 tokenY, ILBFactory lbFactory, uint24 activeId, uint16 binStep, uint256 tokenPerBin) {
+    constructor(IERC20 tokenY, ILBFactory lbFactory, uint24 activeId, uint16 binStep, uint256 floorPerBin) {
         _binStep = binStep;
-        _tokenPerBin = tokenPerBin;
+        _floorPerBin = floorPerBin;
         _tokenY = tokenY;
 
         // Create the pair contract at `activeId - 1` to make sure no one can add `tokenY` to the floor or above
@@ -71,7 +72,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     }
 
     /**
-     * @notice Returns the address of the pair contract where the tokens are paired with tokenY.
+     * @notice Returns the address of the pair contract where the floor token is paired with the tokenY.
      * @return The address of the pair contract.
      */
     function pair() public view virtual override returns (ILBPair) {
@@ -105,13 +106,14 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     }
 
     /**
-     * @notice Returns the amount of tokens that are paired in the pair contract as locked liquidity.
-     * @return amountX The amount of tokenX that are paired in the pair contract as locked liquidity.
+     * @notice Returns the amount of tokens that are paired in the pair contract as locked liquidity, ie. owned
+     * by this contract.
+     * @return amountFloor The amount of floor token that are paired in the pair contract as locked liquidity.
      * @return amountY The amount of tokenY that are paired in the pair contract as locked liquidity.
      */
-    function tokensInPair() public view virtual override returns (uint256 amountX, uint256 amountY) {
+    function tokensInPair() public view virtual override returns (uint256 amountFloor, uint256 amountY) {
         (uint24 floorId, uint24 roofId) = range();
-        (amountX, amountY,,) = _getAmountsInPair(floorId, _pair.getActiveId(), roofId);
+        (amountFloor, amountY,,) = _getAmountsInPair(floorId, _pair.getActiveId(), roofId);
     }
 
     /**
@@ -123,16 +125,16 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         (uint24 floorId, uint24 roofId) = range();
         uint24 activeId = _pair.getActiveId();
 
-        (uint256 totalTokenInPair, uint256 totalTokenYInPair,, uint256[] memory tokenYReserves) =
+        (uint256 totalFloorInPair, uint256 totalTokenYInPair,, uint256[] memory tokenYReserves) =
             _getAmountsInPair(floorId, activeId, roofId);
 
-        uint256 tokenInCirculation = totalSupply() - totalTokenInPair;
+        uint256 floorInCirculation = totalSupply() - totalFloorInPair;
 
-        return _calculateNewFloorId(floorId, activeId, tokenInCirculation, totalTokenYInPair, tokenYReserves);
+        return _calculateNewFloorId(floorId, activeId, floorInCirculation, totalTokenYInPair, tokenYReserves);
     }
 
     /**
-     * @notice Returns the amount of tokens owned by `account`.
+     * @notice Returns the amount of floor tokens owned by `account`.
      * @dev This function needs to be overriden by the child contract.
      * @param account The account to get the balance of.
      * @return The amount of tokens owned by `account`.
@@ -203,7 +205,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @param floorId The id of the floor bin.
      * @param activeId The id of the active bin.
      * @param roofId The id of the roof bin.
-     * @return totalTokenInPair The amount of tokens that are owned by this contract as liquidity.
+     * @return totalFloorInPair The amount of tokens that are owned by this contract as liquidity.
      * @return totalTokenYInPair The amount of tokenY that are owned by this contract as liquidity.
      * @return sharesLeftSide The amount of shares owned by this contract as liquidity from floor to active bin.
      * @return reservesY The amount of tokenY owned by this contract as liquidity.
@@ -213,7 +215,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         view
         virtual
         returns (
-            uint256 totalTokenInPair,
+            uint256 totalFloorInPair,
             uint256 totalTokenYInPair,
             uint256[] memory sharesLeftSide,
             uint256[] memory reservesY
@@ -236,12 +238,12 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
             // The check for totalShares is implicit, as `totalShares >= share`
             if (share > 0) {
-                // Calculate the amounts of token and tokenY owned by this contract and that were added as liquidity
+                // Calculate the amounts of tokens owned by this contract and that were added as liquidity
                 uint256 reserveX = binReserveX > 0 ? share.mulDivRoundDown(binReserveX, totalShares) : 0;
                 uint256 reserveY = binReserveY > 0 ? share.mulDivRoundDown(binReserveY, totalShares) : 0;
 
                 // Update the total amounts
-                totalTokenInPair += reserveX;
+                totalFloorInPair += reserveX;
                 totalTokenYInPair += reserveY;
 
                 // Update the arrays for the left side
@@ -258,11 +260,11 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     }
 
     /**
-     * @dev Calculates the new floor id based on the amount of tokens in circulation and the amount of tokenY
+     * @dev Calculates the new floor id based on the amount of floor tokens in circulation and the amount of tokenY
      * available in the pair contract.
      * @param floorId The id of the floor bin.
      * @param activeId The id of the active bin.
-     * @param tokenInCirculation The amount of tokens in circulation.
+     * @param floorInCirculation The amount of floor tokens in circulation.
      * @param tokenYAvailable The amount of tokenY available in the pair contract.
      * @param tokenYReserves The amount of tokenY owned by this contract as liquidity.
      * @return newFloorId The new floor id.
@@ -270,7 +272,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     function _calculateNewFloorId(
         uint24 floorId,
         uint24 activeId,
-        uint256 tokenInCirculation,
+        uint256 floorInCirculation,
         uint256 tokenYAvailable,
         uint256[] memory tokenYReserves
     ) internal view virtual returns (uint24 newFloorId) {
@@ -288,14 +290,14 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
             uint256 price = uint24(id).getPriceFromId(_binStep);
             uint256 tokenYReserve = tokenYReserves[id - floorId];
 
-            // Calculate the amount of tokenY needed to buy all the tokens in circulation
-            uint256 tokenYNeeded = tokenInCirculation.mulShiftRoundUp(price, Constants.SCALE_OFFSET);
+            // Calculate the amount of tokenY needed to buy all the floor token in circulation
+            uint256 tokenYNeeded = floorInCirculation.mulShiftRoundUp(price, Constants.SCALE_OFFSET);
 
             if (tokenYNeeded > tokenYAvailable) {
                 // If the amount of tokenY needed is greater than the amount of tokenY available, we need to
                 // keep iterating over the bins
                 tokenYAvailable -= tokenYReserve;
-                tokenInCirculation -= tokenYReserve.shiftDivRoundDown(Constants.SCALE_OFFSET, price);
+                floorInCirculation -= tokenYReserve.shiftDivRoundDown(Constants.SCALE_OFFSET, price);
             } else {
                 // If the amount of tokenY needed is lower than the amount of tokenY available, we found the
                 // new floor id and we can stop iterating
@@ -327,16 +329,16 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
         // Get the amounts of tokens and tokenY that are in the pair contract, as well as the shares and
         // tokenY reserves owned for each bin
-        (uint256 totalTokenInPair, uint256 totalTokenYInPair, uint256[] memory shares, uint256[] memory tokenYReserves)
+        (uint256 totalFloorInPair, uint256 totalTokenYInPair, uint256[] memory shares, uint256[] memory tokenYReserves)
         = _getAmountsInPair(floorId, activeId, roofId);
 
         // Calculate the amount of tokens in circulation, which is the total supply minus the tokens that are
         // in the pair.
-        uint256 tokenInCirculation = totalSupply() - totalTokenInPair;
+        uint256 floorInCirculation = totalSupply() - totalFloorInPair;
 
         // Calculate the new floor id
         uint256 newFloorId =
-            _calculateNewFloorId(floorId, activeId, tokenInCirculation, totalTokenYInPair, tokenYReserves);
+            _calculateNewFloorId(floorId, activeId, floorInCirculation, totalTokenYInPair, tokenYReserves);
 
         // If the new floor id is the same as the current floor id, no rebalance is needed
         if (newFloorId <= floorId) return false;
@@ -372,9 +374,9 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     }
 
     /**
-     * @dev Helper function to rebalance the floor while making sure to not steal any tokenY or tokens that was sent
-     * by users prior to the rebalance by users, for example during a swap or a liquidity addition.
-     * Note: This functions **only** works if the tokenX is this contract and the tokenY is the `tokenY`. // todo check this
+     * @dev Helper function to rebalance the floor while making sure to not steal any tokens that was sent
+     * by users prior to the rebalance, for example during a swap or a liquidity addition.
+     * Note: This functions **only** works if the tokenX is this contract and the tokenY is the `tokenY`.
      * @param ids The ids of the bins to burn.
      * @param shares The shares to burn.
      * @param newFloorId The new floor id.
@@ -385,7 +387,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         nonReentrant
     {
         // Get the previous reserves of the pair contract
-        (uint256 reserveTokenBefore, uint256 reserveTokenYBefore) = _pair.getReserves();
+        (uint256 reserveFloorBefore, uint256 reserveTokenYBefore) = _pair.getReserves();
 
         // Burns the shares and send the tokenY to the pair as we will add all the tokenY to the new floor bin
         _pair.burn(address(this), address(_pair), ids, shares);
@@ -395,11 +397,11 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         uint256 tokenYBalanceSubProtocolFees = _tokenY.balanceOf(address(_pair)) - tokenYProtocolFees;
 
         // Get the new reserves of the pair contract
-        (uint256 reserveTokenAfter, uint256 reserveTokenYAfter) = _pair.getReserves();
+        (uint256 reserveFloorAfter, uint256 reserveTokenYAfter) = _pair.getReserves();
 
         // Make sure we don't burn any bins greater or equal to the active bin, as this might send some unexpected
         // tokens to the pair contract
-        require(reserveTokenAfter == reserveTokenBefore, "FloorToken: token reserve changed");
+        require(reserveFloorAfter == reserveFloorBefore, "FloorToken: token reserve changed");
 
         // Calculate the delta amounts to get the ratio
         uint256 deltaReserveTokenY = reserveTokenYBefore - reserveTokenYAfter;
@@ -454,7 +456,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
         // Calculate the amount of tokens to mint and the share per bin
         uint64 sharePerBin = uint64(Constants.PRECISION) / nbBins;
-        uint256 tokenAmount = _tokenPerBin * nbBins;
+        uint256 floorAmount = _floorPerBin * nbBins;
 
         // Encode the liquidity parameters for each bin
         bytes32[] memory liquidityParameters = new bytes32[](nbBins);
@@ -467,21 +469,21 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         }
 
         // Get the current reserves of the pair contract
-        (uint256 tokenReserve,) = _pair.getReserves();
-        (uint256 tokenProtocolFees,) = _pair.getProtocolFees();
+        (uint256 floorReserve,) = _pair.getReserves();
+        (uint256 floorProtocolFees,) = _pair.getProtocolFees();
 
         // Calculate the amount of tokens that are owned by the pair contract as liquidity
-        uint256 tokenBalanceSubProtocolFees = balanceOf(address(_pair)) - tokenProtocolFees;
+        uint256 floorBalanceSubProtocolFees = balanceOf(address(_pair)) - floorProtocolFees;
 
         // Calculate the amount of tokens that were sent to the pair contract waiting to be added as liquidity or
         // swapped for tokenY.
-        uint256 previousBalance = tokenBalanceSubProtocolFees - tokenReserve;
+        uint256 previousBalance = floorBalanceSubProtocolFees - floorReserve;
 
         // Mint or burn the tokens to make sure that the amount of tokens that will be added as liquidity is
-        // exactly `tokenAmount`.
+        // exactly `floorAmount`.
         unchecked {
-            if (previousBalance > tokenAmount) _burn(address(_pair), previousBalance - tokenAmount);
-            else if (tokenAmount > previousBalance) _mint(address(_pair), tokenAmount - previousBalance);
+            if (previousBalance > floorAmount) _burn(address(_pair), previousBalance - floorAmount);
+            else if (floorAmount > previousBalance) _mint(address(_pair), floorAmount - previousBalance);
         }
 
         // Mint the tokens to the pair contract and mint the liquidity
@@ -491,19 +493,19 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         require(amountsReceived.sub(amountsLeft).decodeY() == 0, "FloorToken: invalid amounts");
 
         // Make sure that the amount of tokens X that were added as liquidity is exactly `tokenAmount`
-        uint256 tokenLeft;
+        uint256 floorInExcess;
         if (amountsLeft.decodeX() > 0) {
-            (uint256 tokenReserveAfter,) = _pair.getReserves();
-            (uint256 tokenProtocolFeesAfter,) = _pair.getProtocolFees();
+            (uint256 floorReserveAfter,) = _pair.getReserves();
+            (uint256 floorProtocolFeesAfter,) = _pair.getProtocolFees();
 
             // Calculate the amount of tokens that are left from the deposit
-            tokenLeft = balanceOf(address(_pair)) - (tokenReserveAfter + tokenProtocolFeesAfter);
+            floorInExcess = balanceOf(address(_pair)) - (floorReserveAfter + floorProtocolFeesAfter);
         }
 
         // Mint or burn the token to make sure that the amount of token in excess is exactly `previousBalance`
         unchecked {
-            if (tokenLeft > previousBalance) _burn(address(_pair), tokenLeft - previousBalance);
-            else if (previousBalance > tokenLeft) _mint(address(_pair), previousBalance - tokenLeft);
+            if (floorInExcess > previousBalance) _burn(address(_pair), floorInExcess - previousBalance);
+            else if (previousBalance > floorInExcess) _mint(address(_pair), previousBalance - floorInExcess);
         }
 
         // Update the roof id
