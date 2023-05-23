@@ -26,6 +26,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     using PackedUint128Math for bytes32;
 
     uint256 private constant _MAX_NUM_BINS = 100;
+    uint8 private constant _STATUS_NOT_ENTERED = 1;
+    uint8 private constant _STATUS_ENTERED = 2;
 
     IWNATIVE private immutable _wNative;
     ILBPair private immutable _pair;
@@ -35,6 +37,17 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     uint24 private _floorId;
     uint24 private _roofId;
     bool private _rebalancePaused;
+    uint8 private _status;
+
+    /**
+     * @notice Modifier to make sure that the function is not reentrant.
+     */
+    modifier nonReentrant() {
+        require(_status == _STATUS_NOT_ENTERED, "FloorToken: reentrant call");
+        _status = _STATUS_ENTERED;
+        _;
+        _status = _STATUS_NOT_ENTERED;
+    }
 
     /**
      * @notice Constructor that initializes the contracts' parameters.
@@ -55,6 +68,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         _pair = lbFactory.createLBPair(IERC20(address(this)), IERC20(wNative), activeId - 1, binStep);
 
         _floorId = activeId;
+        _status = _STATUS_NOT_ENTERED;
     }
 
     /**
@@ -135,6 +149,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @notice Force the floor to be rebalanced, in case it wasn't done automatically.
      * @dev This function can be called by anyone, but only if the rebalance is not paused and if the floor
      * needs to be rebalanced.
+     * The nonReentrant check is done in `_safeRebalance`.
      */
     function rebalanceFloor() public virtual override {
         require(!_rebalancePaused, "FloorToken: rebalance paused");
@@ -150,6 +165,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * This functions should not be called too often as it will increase the gas cost of the transfers, and
      * might even make the transfers if the transaction runs out of gas. It is recommended to only call this
      * function when the floor is close to the roof.
+     * The nonReentrant check is done in `_raiseRoof`.
      * @param nbBins The number of bins to raise the floor by.
      */
     function raiseRoof(uint24 nbBins) public virtual override onlyOwner {
@@ -348,10 +364,10 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
             mstore(shares, nbBins)
         }
 
-        _safeRebalance(ids, shares, uint24(newFloorId));
-
         // Update the floor id
         _floorId = uint24(newFloorId);
+
+        _safeRebalance(ids, shares, uint24(newFloorId));
 
         emit FloorRaised(newFloorId);
 
@@ -366,7 +382,11 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @param shares The shares to burn.
      * @param newFloorId The new floor id.
      */
-    function _safeRebalance(uint256[] memory ids, uint256[] memory shares, uint24 newFloorId) internal virtual {
+    function _safeRebalance(uint256[] memory ids, uint256[] memory shares, uint24 newFloorId)
+        internal
+        virtual
+        nonReentrant
+    {
         // Get the previous reserves of the pair contract
         (uint256 reserveTokenBefore, uint256 reserveWNativeBefore) = _pair.getReserves();
 
@@ -424,7 +444,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @param floorId The id of the floor bin.
      * @param nbBins The number of bins to raise the roof by.
      */
-    function _raiseRoof(uint24 roofId, uint24 floorId, uint24 nbBins) internal virtual {
+    function _raiseRoof(uint24 roofId, uint24 floorId, uint24 nbBins) internal virtual nonReentrant {
         require(nbBins > 0, "FloorToken: zero bins");
         require(roofId == 0 || _pair.getActiveId() <= roofId, "FloorToken: active bin above roof");
 
@@ -438,10 +458,6 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         // Calculate the amount of tokens to mint and the share per bin
         uint64 sharePerBin = uint64(Constants.PRECISION) / nbBins;
         uint256 tokenAmount = _tokenPerBin * nbBins;
-
-        // Calculate the exact amount of tokens to mint to make sure that the amount of tokens in circulation
-        // is not increased
-        tokenAmount = (tokenAmount * sharePerBin / Constants.PRECISION) * nbBins;
 
         // Encode the liquidity parameters for each bin
         bytes32[] memory liquidityParameters = new bytes32[](nbBins);
@@ -494,7 +510,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         if (from == address(_pair) || from == address(0) || to == address(0)) return;
 
         // If the rebalance is not paused, rebalance the floor if needed
-        if (!_rebalancePaused) _rebalanceFloor();
+        if (!_rebalancePaused && _status == _STATUS_NOT_ENTERED) _rebalanceFloor();
     }
 
     /**
