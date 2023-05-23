@@ -41,11 +41,11 @@ contract TransferTripleTaxToken is TransferDoubleTaxToken, ITransferTripleTaxTok
     function thirdTaxRecipient() public view virtual override returns (address) {
         return _thirdTaxRecipient;
     }
+
     /**
      * @notice Returns the share of the transfer tax for the third recipient.
      * @return The share of the transfer tax for the third recipient.
      */
-
     function shareForThirdTaxRecipient() public view virtual override returns (uint256) {
         return _shareForThirdTaxRecipient;
     }
