@@ -43,7 +43,7 @@ contract TransferTaxTokenTest is Test {
         token.setTaxRate(1);
 
         vm.expectRevert("Ownable: caller is not the owner");
-        token.setExcludedFromTax(address(1), true);
+        token.setExcludedFromTax(address(1), 0);
 
         vm.stopPrank();
     }
@@ -102,36 +102,44 @@ contract TransferTaxTokenTest is Test {
     }
 
     function test_SetExcludedFromTax() public {
-        token.setExcludedFromTax(address(1), true);
-        assertEq(token.excludedFromTax(address(1)), true, "test_SetExcludedFromTax::1");
+        token.setExcludedFromTax(address(1), 1);
+        assertEq(token.excludedFromTax(address(1)), 1, "test_SetExcludedFromTax::1");
 
-        token.setExcludedFromTax(address(1), false);
-        assertEq(token.excludedFromTax(address(1)), false, "test_SetExcludedFromTax::2");
+        token.setExcludedFromTax(address(1), 2);
+        assertEq(token.excludedFromTax(address(1)), 2, "test_SetExcludedFromTax::2");
 
-        token.setExcludedFromTax(address(this), true);
-        assertEq(token.excludedFromTax(address(this)), true, "test_SetExcludedFromTax::3");
+        token.setExcludedFromTax(address(this), 3);
+        assertEq(token.excludedFromTax(address(this)), 3, "test_SetExcludedFromTax::3");
 
-        token.setExcludedFromTax(address(this), false);
-        assertEq(token.excludedFromTax(address(this)), false, "test_SetExcludedFromTax::4");
+        token.setExcludedFromTax(address(this), 0);
+        assertEq(token.excludedFromTax(address(this)), 0, "test_SetExcludedFromTax::4");
 
         vm.expectRevert("TransferTaxToken: same exclusion status");
-        token.setExcludedFromTax(address(this), false);
+        token.setExcludedFromTax(address(this), 0);
+
+        vm.expectRevert("TransferTaxToken: invalid excluded status");
+        token.setExcludedFromTax(address(this), 4);
     }
 
-    function test_SetExcludedFromTaxFuzzing(address account1) public {
-        vm.expectRevert("TransferTaxToken: same exclusion status");
-        token.setExcludedFromTax(account1, false);
-
-        token.setExcludedFromTax(account1, true);
-
-        assertTrue(token.excludedFromTax(account1), "test_SetExcludedFromTaxFuzzing::1");
+    function test_SetExcludedFromTaxFuzzing(address account1, uint256 status) public {
+        status = bound(status, 1, 3);
 
         vm.expectRevert("TransferTaxToken: same exclusion status");
-        token.setExcludedFromTax(account1, true);
+        token.setExcludedFromTax(account1, 0);
 
-        token.setExcludedFromTax(account1, false);
+        token.setExcludedFromTax(account1, status);
 
-        assertFalse(token.excludedFromTax(account1), "test_SetExcludedFromTaxFuzzing::2");
+        assertEq(token.excludedFromTax(account1), status, "test_SetExcludedFromTaxFuzzing::1");
+
+        vm.expectRevert("TransferTaxToken: same exclusion status");
+        token.setExcludedFromTax(account1, status);
+
+        token.setExcludedFromTax(account1, 0);
+
+        assertEq(token.excludedFromTax(account1), 0, "test_SetExcludedFromTaxFuzzing::2");
+
+        vm.expectRevert("TransferTaxToken: invalid excluded status");
+        token.setExcludedFromTax(account1, bound(status, 4, type(uint256).max));
     }
 
     function test_Transfer() public {
@@ -147,15 +155,57 @@ contract TransferTaxTokenTest is Test {
         assertEq(token.balanceOf(address(2)), 9, "test_Transfer::2");
         assertEq(token.balanceOf(address(this)), 1, "test_Transfer::3");
 
-        token.setExcludedFromTax(address(1), true);
+        token.setExcludedFromTax(address(1), 1); // Only from
 
         vm.prank(address(1));
-        token.transfer(address(3), 90);
+        token.transfer(address(3), 10);
 
-        assertEq(token.balanceOf(address(1)), 0, "test_Transfer::4");
+        assertEq(token.balanceOf(address(1)), 80, "test_Transfer::4");
         assertEq(token.balanceOf(address(2)), 9, "test_Transfer::5");
-        assertEq(token.balanceOf(address(3)), 90, "test_Transfer::6");
+        assertEq(token.balanceOf(address(3)), 10, "test_Transfer::6");
         assertEq(token.balanceOf(address(this)), 1, "test_Transfer::7");
+
+        token.setExcludedFromTax(address(1), 2); // Only to
+
+        vm.prank(address(1));
+        token.transfer(address(4), 10);
+
+        assertEq(token.balanceOf(address(1)), 70, "test_Transfer::8");
+        assertEq(token.balanceOf(address(2)), 9, "test_Transfer::9");
+        assertEq(token.balanceOf(address(3)), 10, "test_Transfer::10");
+        assertEq(token.balanceOf(address(4)), 9, "test_Transfer::11");
+        assertEq(token.balanceOf(address(this)), 2, "test_Transfer::12");
+
+        vm.prank(address(3));
+        token.transfer(address(1), 10);
+
+        assertEq(token.balanceOf(address(1)), 80, "test_Transfer::13");
+        assertEq(token.balanceOf(address(2)), 9, "test_Transfer::14");
+        assertEq(token.balanceOf(address(3)), 0, "test_Transfer::15");
+        assertEq(token.balanceOf(address(4)), 9, "test_Transfer::16");
+        assertEq(token.balanceOf(address(this)), 2, "test_Transfer::17");
+
+        token.setExcludedFromTax(address(1), 3); // Both
+
+        vm.prank(address(1));
+        token.transfer(address(5), 10);
+
+        assertEq(token.balanceOf(address(1)), 70, "test_Transfer::18");
+        assertEq(token.balanceOf(address(2)), 9, "test_Transfer::19");
+        assertEq(token.balanceOf(address(3)), 0, "test_Transfer::20");
+        assertEq(token.balanceOf(address(4)), 9, "test_Transfer::21");
+        assertEq(token.balanceOf(address(5)), 10, "test_Transfer::22");
+        assertEq(token.balanceOf(address(this)), 2, "test_Transfer::23");
+
+        vm.prank(address(5));
+        token.transfer(address(1), 10);
+
+        assertEq(token.balanceOf(address(1)), 80, "test_Transfer::24");
+        assertEq(token.balanceOf(address(2)), 9, "test_Transfer::25");
+        assertEq(token.balanceOf(address(3)), 0, "test_Transfer::26");
+        assertEq(token.balanceOf(address(4)), 9, "test_Transfer::27");
+        assertEq(token.balanceOf(address(5)), 0, "test_Transfer::28");
+        assertEq(token.balanceOf(address(this)), 2, "test_Transfer::29");
     }
 
     function test_TransferFuzzing(address from, address to, uint256 taxRate, uint256 amount1, uint256 amount2) public {
@@ -183,7 +233,7 @@ contract TransferTaxTokenTest is Test {
         assertEq(token.balanceOf(to), amountAfterTax1, "test_Transfer::2");
         assertEq(token.balanceOf(address(this)), tax1, "test_Transfer::3");
 
-        token.setExcludedFromTax(from, true);
+        token.setExcludedFromTax(from, 1); // Only from
 
         vm.prank(from);
         token.transfer(to, amount2);
@@ -192,6 +242,16 @@ contract TransferTaxTokenTest is Test {
 
         assertEq(token.balanceOf(to), amountAfterTax1 + amount2, "test_TransferFuzzing::5");
         assertEq(token.balanceOf(address(this)), tax1, "test_TransferFuzzing::6");
+
+        token.setExcludedFromTax(from, 2); // Only to
+
+        vm.prank(to);
+        token.transfer(from, amount2);
+
+        assertEq(token.balanceOf(from), amount2, "test_TransferFuzzing::7");
+
+        assertEq(token.balanceOf(to), amountAfterTax1, "test_TransferFuzzing::8");
+        assertEq(token.balanceOf(address(this)), tax1, "test_TransferFuzzing::9");
     }
 
     function test_TransferAndBurn() public {
@@ -206,7 +266,7 @@ contract TransferTaxTokenTest is Test {
         assertEq(token.balanceOf(address(2)), 9, "test_TransferAndBurn::2");
         assertEq(token.totalSupply(), 99, "test_TransferAndBurn::3");
 
-        token.setExcludedFromTax(address(1), true);
+        token.setExcludedFromTax(address(1), 3);
 
         vm.prank(address(1));
         token.transfer(address(3), 90);
@@ -243,7 +303,7 @@ contract TransferTaxTokenTest is Test {
         assertEq(token.balanceOf(to), amountAfterTax1, "test_Transfer::2");
         assertEq(token.totalSupply(), sum - tax1, "test_Transfer::3");
 
-        token.setExcludedFromTax(from, true);
+        token.setExcludedFromTax(from, 3);
 
         vm.prank(from);
         token.transfer(to, amount2);
