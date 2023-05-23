@@ -90,8 +90,7 @@ contract TransferTripleTaxToken is TransferDoubleTaxToken, ITransferTripleTaxTok
         onlyOwner
     {
         require(
-            newShareForSecondRecipient <= _PRECISION
-                && newShareForSecondRecipient + shareForThirdTaxRecipient() <= _PRECISION,
+            newShareForSecondRecipient <= _PRECISION - shareForThirdTaxRecipient(),
             "TransferTripleTaxToken: invalid share"
         );
 
@@ -105,8 +104,7 @@ contract TransferTripleTaxToken is TransferDoubleTaxToken, ITransferTripleTaxTok
      */
     function setShareForThirdTaxRecipient(uint256 newShareForThirdRecipient) public virtual override onlyOwner {
         require(
-            newShareForThirdRecipient <= _PRECISION
-                && newShareForThirdRecipient + shareForSecondTaxRecipient() <= _PRECISION,
+            newShareForThirdRecipient <= _PRECISION - shareForSecondTaxRecipient(),
             "TransferTripleTaxToken: invalid share"
         );
 
