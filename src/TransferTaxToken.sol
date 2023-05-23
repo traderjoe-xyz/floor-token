@@ -22,6 +22,16 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
     uint256 internal constant _PRECISION = 1e18;
 
     /**
+     * @dev The exclusion status of accounts from transfer tax. Each new status must be a power of 2.
+     * This is done so that statuses that are a combination of other statuses are easily checkable with
+     * bitwise operations and do not require iteration.
+     */
+    uint256 internal constant _EXCLUDED_NONE = 0; // 0b0000
+    uint256 internal constant _EXCLUDED_FROM = 1 << 0; // 0b0001
+    uint256 internal constant _EXCLUDED_TO = 1 << 1; // 0b0010
+    uint256 internal constant _EXCLUDED_BOTH = _EXCLUDED_FROM | _EXCLUDED_TO; // 0b0011
+
+    /**
      * @dev The recipient and rate of the transfer tax.
      */
     address private _taxRecipient;
@@ -30,7 +40,7 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
     /**
      * @dev The exclusion status of accounts from transfer tax.
      */
-    mapping(address => bool) private _excludedFromTax;
+    mapping(address => uint256) private _excludedFromTax;
 
     /**
      * @notice Constructor that initializes the token's name and symbol.
@@ -69,11 +79,15 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
     }
 
     /**
-     * @notice Returns true if `account` is excluded from transfer tax.
+     * @notice Returns:
+     * - `0` if `account` is not excluded from transfer tax,
+     * - `1` if `account` is excluded from transfer tax when sending to another account,
+     * - `2` if `account` is excluded from transfer tax when receiving from another account,
+     * - `3` if `account` is excluded from transfer tax on both sending and receiving,
      * @param account The account to check.
-     * @return True if `account` is excluded from transfer tax.
+     * @return The exclusion status of `account` from transfer tax.
      */
-    function excludedFromTax(address account) public view virtual override returns (bool) {
+    function excludedFromTax(address account) public view virtual override returns (uint256) {
         return _excludedFromTax[account];
     }
 
@@ -97,13 +111,13 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
     }
 
     /**
-     * @notice Sets `excluded` as the exclusion status of `account` from transfer tax.
+     * @notice Sets the exclusion status of `account` from transfer tax.
      * @dev Only callable by the owner.
-     * @param account The account to set exclusion status for.
-     * @param excluded The exclusion status to set.
+     * @param account The account to set the exclusion status of.
+     * @param excludedStatus The new exclusion status of `account` from transfer tax.
      */
-    function setExcludedFromTax(address account, bool excluded) public virtual override onlyOwner {
-        _setExcludedFromTax(account, excluded);
+    function setExcludedFromTax(address account, uint256 excludedStatus) public virtual override onlyOwner {
+        _setExcludedFromTax(account, excludedStatus);
     }
 
     /**
@@ -130,16 +144,17 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
     }
 
     /**
-     * @dev Sets `excluded` as the exclusion status of `account` from transfer tax.
-     * @param account The account to set exclusion status for.
-     * @param excluded The exclusion status to set.
+     * @dev Sets the exclusion status of `account` from transfer tax.
+     * @param account The account to set the exclusion status of.
+     * @param excludedStatus The new exclusion status of `account` from transfer tax.
      */
-    function _setExcludedFromTax(address account, bool excluded) internal virtual {
-        require(_excludedFromTax[account] != excluded, "TransferTaxToken: same exclusion status");
+    function _setExcludedFromTax(address account, uint256 excludedStatus) internal virtual {
+        require(excludedStatus <= _EXCLUDED_BOTH, "TransferTaxToken: invalid excluded status");
+        require(_excludedFromTax[account] != excludedStatus, "TransferTaxToken: same exclusion status");
 
-        _excludedFromTax[account] = excluded;
+        _excludedFromTax[account] = excludedStatus;
 
-        emit ExcludedFromTaxSet(account, excluded);
+        emit ExcludedFromTaxSet(account, excludedStatus);
     }
 
     /**
@@ -151,7 +166,10 @@ contract TransferTaxToken is ERC20, Ownable2Step, ERC165, ITransferTaxToken {
      */
     function _transfer(address sender, address recipient, uint256 amount) internal virtual override {
         if (sender != recipient && amount > 0) {
-            if (excludedFromTax(sender) || excludedFromTax(recipient)) {
+            if (
+                excludedFromTax(sender) & _EXCLUDED_FROM == _EXCLUDED_FROM
+                    || excludedFromTax(recipient) & _EXCLUDED_TO == _EXCLUDED_TO
+            ) {
                 super._transfer(sender, recipient, amount);
             } else {
                 uint256 taxAmount = amount.mulDiv(taxRate(), _PRECISION);
