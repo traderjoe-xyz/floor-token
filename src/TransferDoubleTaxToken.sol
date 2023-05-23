@@ -69,7 +69,7 @@ contract TransferDoubleTaxToken is TransferTaxToken, ITransferDoubleTaxToken {
      * @dev Only callable by the owner.
      * @param newSecondTaxRecipient The new second transfer tax recipient.
      */
-    function setSecondTaxRecipient(address newSecondTaxRecipient) external override onlyOwner {
+    function setSecondTaxRecipient(address newSecondTaxRecipient) public virtual override onlyOwner {
         _secondTaxRecipient = newSecondTaxRecipient;
 
         emit SecondTaxRecipientSet(newSecondTaxRecipient);
@@ -80,10 +80,18 @@ contract TransferDoubleTaxToken is TransferTaxToken, ITransferDoubleTaxToken {
      * @dev Only callable by the owner.
      * @param newShareForSecondRecipient The new share of the transfer tax for the second recipient.
      */
-    function setShareForSecondTaxRecipient(uint256 newShareForSecondRecipient) external override onlyOwner {
+    function setShareForSecondTaxRecipient(uint256 newShareForSecondRecipient) public virtual override onlyOwner {
         require(newShareForSecondRecipient <= _PRECISION, "TransferDoubleTaxToken: invalid share");
 
-        _shareForSecondTaxRecipient = uint96(newShareForSecondRecipient);
+        _setShareForSecondTaxRecipient(uint96(newShareForSecondRecipient));
+    }
+
+    /**
+     * @dev Sets the share of the transfer tax for the second recipient.
+     * @param newShareForSecondRecipient The new share of the transfer tax for the second recipient.
+     */
+    function _setShareForSecondTaxRecipient(uint96 newShareForSecondRecipient) internal virtual {
+        _shareForSecondTaxRecipient = newShareForSecondRecipient;
 
         emit ShareForSecondTaxRecipientSet(newShareForSecondRecipient);
     }
@@ -99,16 +107,10 @@ contract TransferDoubleTaxToken is TransferTaxToken, ITransferDoubleTaxToken {
         virtual
         override
     {
-        address secondTaxRecipient_ = secondTaxRecipient();
+        uint256 amountForSecondTaxRecipient = totalTaxAmount.mulDiv(shareForSecondTaxRecipient(), _PRECISION);
+        uint256 amountForFirstTaxRecipient = totalTaxAmount - amountForSecondTaxRecipient;
 
-        if (secondTaxRecipient_ != firstTaxRecipient) {
-            uint256 amountForSecondTaxRecipient = totalTaxAmount.mulDiv(shareForSecondTaxRecipient(), _PRECISION);
-
-            totalTaxAmount -= amountForSecondTaxRecipient;
-
-            super._transferTaxAmount(sender, secondTaxRecipient_, amountForSecondTaxRecipient);
-        }
-
-        super._transferTaxAmount(sender, firstTaxRecipient, totalTaxAmount);
+        super._transferTaxAmount(sender, secondTaxRecipient(), amountForSecondTaxRecipient);
+        super._transferTaxAmount(sender, firstTaxRecipient, amountForFirstTaxRecipient);
     }
 }

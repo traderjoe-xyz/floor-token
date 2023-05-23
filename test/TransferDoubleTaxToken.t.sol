@@ -319,15 +319,5 @@ contract TransferDoubleTaxTokenTest is Test {
         assertEq(token.balanceOf(to), amountAfterTax1 + amountAfterTax2, "testFuzzing_TransferAndBurn::6");
         assertEq(token.balanceOf(address(this)), tax1_1 + tax2_2, "testFuzzing_TransferAndBurn::7");
         assertEq(token.totalSupply(), sum - tax1_2 - tax2_1, "testFuzzing_TransferAndBurn::8");
-
-        // token.setExcludedFromTax(from, true);
-
-        // vm.prank(from);
-        // token.transfer(to, amount2);
-
-        // assertEq(token.balanceOf(from), 0, "test_TransferFuzzing::4");
-
-        // assertEq(token.balanceOf(to), amountAfterTax1 + amount2, "test_TransferFuzzing::5");
-        // assertEq(token.totalSupply(), sum - tax1, "test_TransferFuzzing::6");
     }
 }
