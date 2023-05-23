@@ -488,10 +488,26 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         }
 
         // Mint the tokens to the pair contract and mint the liquidity
-        _pair.mint(address(this), liquidityParameters, address(_pair));
+        (bytes32 amountsReceived, bytes32 amountsLeft,) = _pair.mint(address(this), liquidityParameters, address(_pair));
 
-        // Mint the previous balance to the pair contract to make sure
-        if (previousBalance > 0) _mint(address(_pair), previousBalance);
+        // Make sure that no tokens Y were added as liquidity as this would mean stealing user funds.
+        require(amountsReceived.sub(amountsLeft).decodeY() == 0, "FloorToken: invalid amounts");
+
+        // Make sure that the amount of tokens X that were added as liquidity is exactly `tokenAmount`
+        uint256 tokenLeft;
+        if (amountsLeft.decodeX() > 0) {
+            (uint256 tokenReserveAfter,) = _pair.getReserves();
+            (uint256 tokenProtocolFeesAfter,) = _pair.getProtocolFees();
+
+            // Calculate the amount of tokens that are left from the deposit
+            tokenLeft = balanceOf(address(_pair)) - (tokenReserveAfter + tokenProtocolFeesAfter);
+        }
+
+        // Mint or burn the token to make sure that the amount of token in excess is exactly `previousBalance`
+        unchecked {
+            if (tokenLeft > previousBalance) _burn(address(_pair), tokenLeft - previousBalance);
+            else if (previousBalance > tokenLeft) _mint(address(_pair), previousBalance - tokenLeft);
+        }
 
         // Update the roof id
         _roofId = uint24(newRoofId);
