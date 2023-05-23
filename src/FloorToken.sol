@@ -84,7 +84,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @return The price floor of the token, in 128.128 fixed point format.
      */
     function floorPrice() public view virtual override returns (uint256) {
-        return _floorId.getPriceFromId(_binStep);
+        (uint24 floorId,) = range();
+        return floorId.getPriceFromId(_binStep);
     }
 
     /**
@@ -110,7 +111,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @return wNative The amount of wNative that are paired in the pair contract as locked liquidity.
      */
     function tokensInPair() public view virtual override returns (uint256 token, uint256 wNative) {
-        (token, wNative,,) = _getAmountsInPair(_floorId, _pair.getActiveId(), _roofId);
+        (uint24 floorId, uint24 roofId) = range();
+        (token, wNative,,) = _getAmountsInPair(floorId, _pair.getActiveId(), roofId);
     }
 
     /**
@@ -119,11 +121,11 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @return The new floor id if the floor was to be rebalanced.
      */
     function calculateNewFloorId() public view virtual override returns (uint24) {
-        uint24 floorId = _floorId;
+        (uint24 floorId, uint24 roofId) = range();
         uint24 activeId = _pair.getActiveId();
 
         (uint256 totalTokenInPair, uint256 totalWNativeInPair,, uint256[] memory wNativeReserves) =
-            _getAmountsInPair(floorId, activeId, _roofId);
+            _getAmountsInPair(floorId, activeId, roofId);
 
         uint256 tokenInCirculation = totalSupply() - totalTokenInPair;
 
@@ -152,7 +154,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * The nonReentrant check is done in `_safeRebalance`.
      */
     function rebalanceFloor() public virtual override {
-        require(!_rebalancePaused, "FloorToken: rebalance paused");
+        require(!rebalancePaused(), "FloorToken: rebalance paused");
         require(_rebalanceFloor(), "FloorToken: no rebalance needed");
     }
 
@@ -169,7 +171,8 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @param nbBins The number of bins to raise the floor by.
      */
     function raiseRoof(uint24 nbBins) public virtual override onlyOwner {
-        _raiseRoof(_roofId, _floorId, nbBins);
+        (uint24 floorId, uint24 roofId) = range();
+        _raiseRoof(roofId, floorId, nbBins);
     }
 
     /**
@@ -177,7 +180,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @dev Only callable by the owner.
      */
     function pauseRebalance() public virtual override onlyOwner {
-        require(!_rebalancePaused, "FloorToken: rebalance already paused");
+        require(!rebalancePaused(), "FloorToken: rebalance already paused");
 
         _rebalancePaused = true;
 
@@ -189,7 +192,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @dev Only callable by the owner.
      */
     function unpauseRebalance() public virtual override onlyOwner {
-        require(_rebalancePaused, "FloorToken: rebalance already unpaused");
+        require(rebalancePaused(), "FloorToken: rebalance already unpaused");
 
         _rebalancePaused = false;
 
@@ -315,8 +318,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      */
     function _rebalanceFloor() internal virtual returns (bool) {
         uint24 activeId = _pair.getActiveId();
-        uint24 floorId = _floorId;
-        uint24 roofId = _roofId;
+        (uint24 floorId, uint24 roofId) = range();
 
         // If the floor is already at the active bin minus one or above, no rebalance is needed.
         // We do `floorId + 1` because if the `activeId = floorId + 1`, the rebalance is not doable because
@@ -526,7 +528,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         if (from == address(_pair) || from == address(0) || to == address(0)) return;
 
         // If the rebalance is not paused, rebalance the floor if needed
-        if (!_rebalancePaused && _status == _STATUS_NOT_ENTERED) _rebalanceFloor();
+        if (!rebalancePaused() && _status == _STATUS_NOT_ENTERED) _rebalanceFloor();
     }
 
     /**
