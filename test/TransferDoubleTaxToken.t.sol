@@ -153,7 +153,7 @@ contract TransferDoubleTaxTokenTest is Test {
         assertEq(token.balanceOf(address(this)), 4, "test_Transfer::7");
         assertEq(token.balanceOf(address(5)), 2, "test_transfer::8");
 
-        token.setExcludedFromTax(address(1), true);
+        token.setExcludedFromTax(address(1), 3);
 
         vm.prank(address(1));
         token.transfer(address(4), 40);
@@ -198,7 +198,7 @@ contract TransferDoubleTaxTokenTest is Test {
         assertEq(token.balanceOf(address(this)), tax1 > 0 ? (tax1 - 1) / 2 + 1 : 0, "test_TransferFuzzing::3");
         assertEq(token.balanceOf(address(5)), tax1 / 2, "test_TransferFuzzing::4");
 
-        token.setExcludedFromTax(from, true);
+        token.setExcludedFromTax(from, 3);
 
         vm.prank(from);
         token.transfer(to, amount2);
@@ -240,7 +240,7 @@ contract TransferDoubleTaxTokenTest is Test {
         assertEq(token.balanceOf(address(this)), 11, "test_TransferAndBurn::8");
         assertEq(token.totalSupply(), 89, "test_TransferAndBurn::9");
 
-        token.setExcludedFromTax(address(1), true);
+        token.setExcludedFromTax(address(1), 3);
 
         vm.prank(address(1));
         token.transfer(address(4), 40);

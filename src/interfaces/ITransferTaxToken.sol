@@ -9,17 +9,17 @@ interface ITransferTaxToken is IERC165 {
 
     event TaxRateSet(uint256 taxRate);
 
-    event ExcludedFromTaxSet(address indexed account, bool excluded);
+    event ExcludedFromTaxSet(address indexed account, uint256 excludedStatus);
 
     function taxRecipient() external view returns (address);
 
     function taxRate() external view returns (uint256);
 
-    function excludedFromTax(address account) external view returns (bool);
+    function excludedFromTax(address account) external view returns (uint256);
 
     function setTaxRate(uint256 taxRate) external;
 
     function setTaxRecipient(address taxRecipient) external;
 
-    function setExcludedFromTax(address account, bool excluded) external;
+    function setExcludedFromTax(address account, uint256 excludedStatus) external;
 }
