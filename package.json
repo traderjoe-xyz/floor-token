@@ -1,0 +1,26 @@
+{
+  "name": "floor-token",
+  "version": "1.0.0",
+  "description": "Floor token contracts SDK",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "forge test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/traderjoe-xyz/floor-token.git"
+  },
+  "keywords": [
+    "solidity",
+    "ethereum"
+  ],
+  "author": "Trader Joe XYZ",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/traderjoe-xyz/floor-token/issues"
+  },
+  "homepage": "https://github.com/traderjoe-xyz/floor-token#readme"
+}
