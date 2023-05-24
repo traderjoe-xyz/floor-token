@@ -32,7 +32,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     IERC20 private immutable _tokenY;
     ILBPair private immutable _pair;
     uint16 private immutable _binStep;
-    uint256 private immutable _floorPerBin;
+    uint256 private immutable _liquidityPerBin;
 
     uint24 private _floorId;
     uint24 private _roofId;
@@ -61,8 +61,10 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      */
     constructor(IERC20 tokenY, ILBFactory lbFactory, uint24 activeId, uint16 binStep, uint256 floorPerBin) {
         _binStep = binStep;
-        _floorPerBin = floorPerBin;
         _tokenY = tokenY;
+
+        uint256 price = activeId.getPriceFromId(binStep);
+        _liquidityPerBin = floorPerBin.mulShiftRoundUp(price, Constants.SCALE_OFFSET);
 
         // Create the pair contract at `activeId - 1` to make sure no one can add `tokenY` to the floor or above
         _pair = lbFactory.createLBPair(IERC20(address(this)), tokenY, activeId - 1, binStep);
@@ -454,14 +456,25 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         uint256 newRoofId = nextId + nbBins - 1;
         require(newRoofId - floorId <= _MAX_NUM_BINS && newRoofId <= type(uint24).max, "FloorToken: new roof too high");
 
-        // Calculate the amount of tokens to mint and the share per bin
-        uint64 sharePerBin = uint64(Constants.PRECISION) / nbBins;
-        uint256 floorAmount = _floorPerBin * nbBins;
+        uint256 currentRoofPrice = uint24(nextId - 1).getPriceFromId(_binStep);
+        uint256 newRoofPrice = uint24(newRoofId).getPriceFromId(_binStep);
+
+        uint256 totalFloorAmount = (
+            _liquidityPerBin.shiftDivRoundDown(Constants.SCALE_OFFSET, currentRoofPrice)
+                - _liquidityPerBin.shiftDivRoundDown(Constants.SCALE_OFFSET, newRoofPrice)
+        ).shiftDivRoundDown(Constants.SCALE_OFFSET, PriceHelper.getBase(_binStep) - Constants.SCALE);
 
         // Encode the liquidity parameters for each bin
         bytes32[] memory liquidityParameters = new bytes32[](nbBins);
         for (uint256 i; i < nbBins;) {
-            liquidityParameters[i] = LiquidityConfigurations.encodeParams(sharePerBin, 0, uint24(nextId + i));
+            uint24 id = uint24(nextId + i);
+
+            uint256 price = id.getPriceFromId(_binStep);
+            uint256 floorAmount = _liquidityPerBin.shiftDivRoundDown(Constants.SCALE_OFFSET, price);
+
+            liquidityParameters[i] = LiquidityConfigurations.encodeParams(
+                uint64(floorAmount * Constants.PRECISION / totalFloorAmount), 0, id
+            );
 
             unchecked {
                 ++i;
@@ -480,10 +493,10 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         uint256 previousBalance = floorBalanceSubProtocolFees - floorReserve;
 
         // Mint or burn the tokens to make sure that the amount of tokens that will be added as liquidity is
-        // exactly `floorAmount`.
+        // exactly `totalFloorAmount`.
         unchecked {
-            if (previousBalance > floorAmount) _burn(address(_pair), previousBalance - floorAmount);
-            else if (floorAmount > previousBalance) _mint(address(_pair), floorAmount - previousBalance);
+            if (previousBalance > totalFloorAmount) _burn(address(_pair), previousBalance - totalFloorAmount);
+            else if (totalFloorAmount > previousBalance) _mint(address(_pair), totalFloorAmount - previousBalance);
         }
 
         // Mint the tokens to the pair contract and mint the liquidity
