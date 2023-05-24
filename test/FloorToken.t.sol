@@ -6,12 +6,12 @@ import "openzeppelin-contracts/utils/math/Math.sol";
 import {ERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
 import {ILBRouter} from "joe-v2/interfaces/ILBRouter.sol";
 
-import {FloorToken, IWNATIVE, ILBFactory, ILBPair, IERC20} from "src/FloorToken.sol";
+import {FloorToken, ILBFactory, ILBPair, IERC20} from "src/FloorToken.sol";
 
 contract TransferTaxFloorTokenTest is Test {
     using Math for uint256;
 
-    IWNATIVE public constant wNative = IWNATIVE(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);
+    IERC20 public constant wNative = IERC20(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);
     ILBFactory public constant lbFactory = ILBFactory(0x8e42f2F4101563bF679975178e880FD87d3eFd4e);
     ILBRouter public constant lbRouter = ILBRouter(0xb4315e873dBcf96Ffd0acd8EA43f689D8c20fB30);
     uint256 constant tokenPerBin = 100e18;
@@ -373,7 +373,7 @@ contract MockFloorToken is ERC20, FloorToken {
         string memory name,
         string memory symbol,
         address owner,
-        IWNATIVE wNative,
+        IERC20 wNative,
         ILBFactory lbFactory,
         uint24 activeId,
         uint16 binStep,
