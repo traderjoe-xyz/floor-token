@@ -3,48 +3,21 @@
 Floor Tokens are token contracts designed to be launched on Liquidity Book AMM, which can rebalance liquidity into a "Floor Bin".
 
 This repo contains:
-- `POTUS` token contract, a floor token with transfer tax. 
-- Token contract examples
-- CLI to launch tokens on Trader Joe DEX. 
 
+- Contracts that implement tax on transfers. The tax can then be sent to one, two or three recipients.
+- A floor token contract that implements the risk-free value (RFV) price bin that backs all the tokens.
 
-## [WIP] POTUS
+## Documentation
 
-`POTUS` is a fixed supply, tax on transfer token inspired by `LOTUS`. 
+[Docs](https://floor.traderjoexyz.com).
 
-- X% taxed on transfer, sent to burn
-- fixed supply, all tokens minted at genesis
-- token liquidity on LB from price X to Y
-- X% of ETH liquidity rebalanced to Floor bin
+## Install as NPM package
 
+```
+$ yarn add @traderjoe-xyz/floor-token
+```
 
-## Floor Bin
-
-[Liquidity Book (LB)](https://support.traderjoexyz.com/en/articles/6893873-liquidity-book-primer) is a highly capital efficient AMM developed by Trader Joe XYZ. 
-- Token liquidity is provided into fixed price "bins". 
-- Users can swap tokens within bins without slippage.
-- The current price is represented by the Active Bin, which contains both X and Y tokens for a given pool. 
-- Token price increase when tokens are bought, filling the current bin, and moving the active bin to the next bin. 
-
-`Floor Tokens` have automatic liquidity rebalancing mechanism. As users buy `Floor Token`, the `ETH` tokens stay in the liquidity bins and would be rebalanced by the token contract. 
-
-The `Floor Bin` is the bin that represents the `floor price`, i.e. the lowest price for which all outstanding tokens may be sold at. For example, liquidity could be automatically rebalanced such that 90% of `ETH` liquidity is concentrated into the `Floor Bin`. 
-
-*This concept was introduced by [White Lotus](https://docs.thewhitelotus.xyz/).*
-
-
-## [WIP] How to use CLI
-TODO
-
-
-## [WIP] How to use SDK
-TODO
-
-## How to contribute to this repo
-
-PRs are welcome, please include tests. 
-
-### Install
+## Install
 
 ```
 # (optional) for macosx
@@ -60,13 +33,16 @@ $ forge install
 $ forge build
 ```
 
-### Testing
+## Testing
 
 ```
 $ forge test
 ```
 
+## How to contribute to this repo
+
+PRs are welcome, please include tests.
+
 ## License
 
-MIT 2023 Trader Joe XYZ
-
+MIT
