@@ -1,6 +1,6 @@
 {
   "name": "floor-token",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "description": "Floor token contracts SDK",
   "directories": {
     "lib": "lib",
