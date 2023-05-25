@@ -1,5 +1,5 @@
 {
-  "name": "floor-token",
+  "name": "@traderjoe-xyz/floor-token",
   "version": "0.0.0",
   "description": "Floor token contracts SDK",
   "directories": {
