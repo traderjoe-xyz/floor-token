@@ -6,6 +6,9 @@
     "lib": "lib",
     "test": "test"
   },
+  "files": [
+    "src"
+  ],
   "scripts": {
     "test": "forge test"
   },
