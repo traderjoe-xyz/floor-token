@@ -130,7 +130,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
         uint256 floorInCirculation = totalSupply() - totalFloorInPair;
 
-        return _calculateNewFloorId(floorId, activeId, floorInCirculation, totalTokenYInPair, tokenYReserves);
+        return _calculateNewFloorId(floorId, activeId, roofId, floorInCirculation, totalTokenYInPair, tokenYReserves);
     }
 
     /**
@@ -264,6 +264,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * available in the pair contract.
      * @param floorId The id of the floor bin.
      * @param activeId The id of the active bin.
+     * @param roofId The id of the roof bin.
      * @param floorInCirculation The amount of floor tokens in circulation.
      * @param tokenYAvailable The amount of tokenY available in the pair contract.
      * @param tokenYReserves The amount of tokenY owned by this contract as liquidity.
@@ -272,14 +273,16 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     function _calculateNewFloorId(
         uint24 floorId,
         uint24 activeId,
+        uint24 roofId,
         uint256 floorInCirculation,
         uint256 tokenYAvailable,
         uint256[] memory tokenYReserves
     ) internal view virtual returns (uint24 newFloorId) {
         if (floorId >= activeId) return floorId;
 
-        // Iterate over all the ids from the active bin to the floor bin, in reverse order
-        uint256 id = activeId + 1;
+        // Iterate over all the ids from the active bin to the floor bin, in reverse order. The floor id can't be
+        // greater than the roof id, so we use the smallest of activeId and roofId as the upper bound.
+        uint256 id = (activeId > roofId ? roofId : activeId) + 1;
         while (id > floorId) {
             // Decrease the id prior to the calculation to avoid having to subtract 1 from the id in the calculations
             unchecked {
@@ -338,7 +341,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
         // Calculate the new floor id
         uint256 newFloorId =
-            _calculateNewFloorId(floorId, activeId, floorInCirculation, totalTokenYInPair, tokenYReserves);
+            _calculateNewFloorId(floorId, activeId, roofId, floorInCirculation, totalTokenYInPair, tokenYReserves);
 
         // If the new floor id is the same as the current floor id, no rebalance is needed
         if (newFloorId <= floorId) return false;

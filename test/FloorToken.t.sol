@@ -6,7 +6,7 @@ import "openzeppelin-contracts/utils/math/Math.sol";
 import {ERC20} from "openzeppelin-contracts/token/ERC20/ERC20.sol";
 import {ILBRouter} from "joe-v2/interfaces/ILBRouter.sol";
 
-import {FloorToken, ILBFactory, ILBPair, IERC20} from "src/FloorToken.sol";
+import {FloorToken, ILBFactory, ILBPair, IERC20, LiquidityConfigurations} from "src/FloorToken.sol";
 
 contract TransferTaxFloorTokenTest is Test {
     using Math for uint256;
@@ -226,13 +226,13 @@ contract TransferTaxFloorTokenTest is Test {
 
         uint256 calculateNewId = token.calculateNewFloorId();
 
-        assertEq(calculateNewId, floorId, "test_RebalanceSimple::1");
+        assertEq(calculateNewId, floorId, "test_RebalanceAndCalculateNewFloorId::1");
 
         _swapNbBins(pair, false, 10);
 
         calculateNewId = token.calculateNewFloorId();
 
-        assertEq(roofId, pair.getActiveId(), "test_Rebalance::2");
+        assertEq(roofId, pair.getActiveId(), "test_RebalanceAndCalculateNewFloorId::2");
 
         vm.startPrank(address(1));
         token.transfer(address(pair), token.balanceOf(address(1)));
@@ -241,21 +241,21 @@ contract TransferTaxFloorTokenTest is Test {
 
         (uint24 newFloorId1,) = token.range();
 
-        assertGt(newFloorId1, floorId, "test_Rebalance::3");
-        assertEq(newFloorId1, calculateNewId, "test_Rebalance::4");
-        assertEq(newFloorId1, pair.getActiveId(), "test_Rebalance::5");
+        assertGt(newFloorId1, floorId, "test_RebalanceAndCalculateNewFloorId::3");
+        assertEq(newFloorId1, calculateNewId, "test_RebalanceAndCalculateNewFloorId::4");
+        assertEq(newFloorId1, pair.getActiveId(), "test_RebalanceAndCalculateNewFloorId::5");
 
         _swapNbBins(pair, false, roofId - newFloorId1);
 
         calculateNewId = token.calculateNewFloorId();
 
-        assertEq(roofId, pair.getActiveId(), "test_Rebalance::6");
+        assertEq(roofId, pair.getActiveId(), "test_RebalanceAndCalculateNewFloorId::6");
 
         token.rebalanceFloor();
         (uint24 newFloorId2,) = token.range();
 
-        assertGt(newFloorId2, newFloorId1, "test_Rebalance::7");
-        assertEq(newFloorId2, calculateNewId, "test_Rebalance::8");
+        assertGt(newFloorId2, newFloorId1, "test_RebalanceAndCalculateNewFloorId::7");
+        assertEq(newFloorId2, calculateNewId, "test_RebalanceAndCalculateNewFloorId::8");
 
         vm.expectRevert("FloorToken: no rebalance needed");
         token.rebalanceFloor();
@@ -266,7 +266,7 @@ contract TransferTaxFloorTokenTest is Test {
 
         (uint24 newFloorId3,) = token.range();
 
-        assertEq(newFloorId3, newFloorId2, "test_Rebalance::9");
+        assertEq(newFloorId3, newFloorId2, "test_RebalanceAndCalculateNewFloorId::9");
     }
 
     function test_RebalanceWhileAddingLiquidity() public {
@@ -333,6 +333,80 @@ contract TransferTaxFloorTokenTest is Test {
         params.amountYMin = params.amountYMin * (1e18 - 1) / 1e18;
         lbRouter.addLiquidity(params);
         vm.stopPrank();
+    }
+
+    function test_GoOverActiveId() public {
+        ILBPair lbPair = ILBPair(token.pair());
+
+        IERC20 tokenY = lbPair.getTokenY();
+
+        vm.prank(lbFactory.owner());
+        lbFactory.setFeesParametersOnPair(IERC20(address(token)), wNative, binStep, 65_535, 0, 0, 0, 0, 0, 0);
+
+        _swapNbBins(lbPair, false, 1);
+
+        vm.startPrank(address(1));
+        token.transfer(address(lbPair), token.balanceOf(address(1)));
+
+        bytes32[] memory liqParam = new bytes32[](1);
+        liqParam[0] = LiquidityConfigurations.encodeParams(uint64(1e18), uint64(1e18), lbPair.getActiveId() + 10000);
+
+        lbPair.mint(address(1), liqParam, address(1));
+        vm.stopPrank();
+
+        (uint128 reserveX,) = lbPair.getReserves();
+        (uint256 amountY,,) = lbPair.getSwapIn(reserveX, false);
+
+        deal(address(tokenY), address(this), amountY);
+
+        tokenY.transfer(address(lbPair), amountY);
+        lbPair.swap(false, address(1));
+
+        token.rebalanceFloor();
+
+        (uint24 floorId, uint24 roofId) = token.range();
+
+        assertEq(floorId, roofId, "test_GoOverActiveId::1");
+        assertLt(floorId, lbPair.getActiveId(), "test_GoOverActiveId::2");
+
+        // 0 fees to simulate worst case scenario
+        vm.prank(lbFactory.owner());
+        lbFactory.setFeesParametersOnPair(IERC20(address(token)), wNative, binStep, 0, 0, 1, 0, 0, 0, 0);
+
+        vm.startPrank(address(1));
+        token.transfer(address(lbPair), token.balanceOf(address(1)));
+        lbPair.swap(true, address(1));
+        vm.stopPrank();
+
+        (floorId, roofId) = token.range();
+
+        // back to very high fees to try to go over the roof
+        vm.prank(lbFactory.owner());
+        lbFactory.setFeesParametersOnPair(IERC20(address(token)), wNative, binStep, 65_535, 0, 0, 0, 0, 0, 0);
+
+        assertEq(floorId, roofId, "test_GoOverActiveId::3");
+        assertEq(floorId, lbPair.getActiveId(), "test_GoOverActiveId::4");
+
+        vm.startPrank(address(1));
+        tokenY.transfer(address(lbPair), tokenY.balanceOf(address(1)));
+        lbPair.swap(false, address(1));
+        vm.stopPrank();
+
+        (floorId, roofId) = token.range();
+
+        assertEq(floorId, roofId, "test_GoOverActiveId::5");
+        assertLt(floorId, lbPair.getActiveId(), "test_GoOverActiveId::6");
+
+        (uint256 tokenXInPair, uint256 tokenYInPair) = token.tokensInPair();
+        uint256 circulatingSupply = token.totalSupply() - tokenXInPair;
+
+        uint256 floorPriceX128 = token.floorPrice();
+        uint256 realFloorPriceX128 = tokenYInPair.mulDiv(1 << 128, circulatingSupply);
+
+        assertGt(realFloorPriceX128, floorPriceX128, "test_GoOverActiveId::7");
+
+        // Make sure the floor price *could* be higher if the roof was higher
+        assertLt(lbPair.getPriceFromId(floorId + 5), realFloorPriceX128, "test_GoOverActiveId::8");
     }
 
     function _swapNbBins(ILBPair lbPair, bool swapForY, uint24 nbBin) internal {
