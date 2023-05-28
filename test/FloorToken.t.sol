@@ -316,7 +316,6 @@ contract TransferTaxFloorTokenTest is Test {
             deadline: block.timestamp
         });
 
-        vm.startPrank(alice);
         token.approve(address(lbRouter), type(uint256).max);
         wNative.approve(address(lbRouter), type(uint256).max);
 
