@@ -608,7 +608,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     function _beforeTokenTransfer(address from, address to, uint256) internal virtual {
         if (from == address(0) || to == address(0)) return;
 
-        if (rebalancePaused()) return; // TODO CHECK if pause then above then swap from above
+        if (rebalancePaused()) return;
 
         // If the token is being transferred from the pair contract, it can't be rebalanced as the
         // reentrancy guard will prevent it. Also prevent the active bin to be above the roof bin.
