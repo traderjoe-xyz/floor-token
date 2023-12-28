@@ -181,10 +181,13 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
     /**
      * @notice Unpauses the rebalance of the floor.
-     * @dev Only callable by the owner.
+     * @dev Only callable by the owner when the active bin is below the roof bin.
      */
     function unpauseRebalance() public virtual override onlyOwner {
         require(rebalancePaused(), "FloorToken: rebalance already unpaused");
+
+        (, uint24 roofId) = range();
+        require(roofId == 0 || pair.getActiveId() <= roofId, "FloorToken: active bin above roof");
 
         _rebalancePaused = false;
 
@@ -524,12 +527,22 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
      * @param to The address of the recipient.
      */
     function _beforeTokenTransfer(address from, address to, uint256) internal virtual {
+        if (from == address(0) || to == address(0)) return;
+
+        if (rebalancePaused()) return; // TODO CHECK if pause then above then swap from above
+
         // If the token is being transferred from the pair contract, it can't be rebalanced as the
-        // reentrancy guard will prevent it
-        if (from == address(pair) || from == address(0) || to == address(0)) return;
+        // reentrancy guard will prevent it. Also prevent the active bin to be above the roof bin.
+        if (from == address(pair)) {
+            uint24 activeId = pair.getActiveId();
+            (, uint24 roofId) = range();
+            require(activeId <= roofId, "FloorToken: active bin above roof");
+
+            return;
+        }
 
         // If the rebalance is not paused, rebalance the floor if needed
-        if (!rebalancePaused() && _status == _STATUS_NOT_ENTERED) _rebalanceFloor();
+        if (_status == _STATUS_NOT_ENTERED) _rebalanceFloor();
     }
 
     /**
