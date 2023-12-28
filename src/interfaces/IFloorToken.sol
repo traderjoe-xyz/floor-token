@@ -12,8 +12,6 @@ interface IFloorToken {
 
     event RebalanceUnpaused();
 
-    function MAX_NUM_BINS() external view returns (uint256);
-
     function pair() external view returns (ILBPair);
 
     function tokenY() external view returns (IERC20);

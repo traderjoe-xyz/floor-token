@@ -25,8 +25,6 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     using PriceHelper for uint24;
     using PackedUint128Math for bytes32;
 
-    uint256 public constant override MAX_NUM_BINS = 100;
-
     IERC20 public immutable override tokenY;
     ILBPair public immutable override pair;
     uint16 public immutable override binStep;
@@ -444,8 +442,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     /**
      * @dev Raises the roof by `nbBins` bins. New tokens will be minted to the pair contract and directly
      * added to new bins that weren't previously in the range.
-     * This will revert if the difference between the new roof id and the floor id is greater than the maximum
-     * number of bins or if the current active bin is above the current roof id.
+     * This will revert if the current active bin is above the current roof id.
      * @param roofId The id of the roof bin.
      * @param floorId The id of the floor bin.
      * @param nbBins The number of bins to raise the roof by.
@@ -459,7 +456,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
         // Calculate the new roof id
         uint256 newRoofId = nextId + nbBins - 1;
-        require(newRoofId - floorId <= MAX_NUM_BINS && newRoofId <= type(uint24).max, "FloorToken: new roof too high");
+        require(newRoofId <= type(uint24).max, "FloorToken: new roof too high");
 
         // Calculate the amount of tokens to mint and the share per bin
         uint64 sharePerBin = uint64(Constants.PRECISION) / nbBins;
