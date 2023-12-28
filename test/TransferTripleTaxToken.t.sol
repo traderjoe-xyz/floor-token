@@ -76,13 +76,13 @@ contract TransferTripleTaxTokenTest is Test {
 
     function test_SetTaxRecipientsFuzzing(address recipient1, address recipient2, address recipient3) public {
         token.setTaxRecipient(recipient1);
-        assertEq(token.taxRecipient(), recipient1, "test_TaxRecipientFuzzing::1");
+        assertEq(token.taxRecipient(), recipient1, "test_SetTaxRecipientsFuzzing::1");
 
         token.setSecondTaxRecipient(recipient2);
-        assertEq(token.secondTaxRecipient(), recipient2, "test_TaxRecipientFuzzing::2");
+        assertEq(token.secondTaxRecipient(), recipient2, "test_SetTaxRecipientsFuzzing::2");
 
         token.setThirdTaxRecipient(recipient3);
-        assertEq(token.thirdTaxRecipient(), recipient3, "test_TaxRecipientFuzzing::3");
+        assertEq(token.thirdTaxRecipient(), recipient3, "test_SetTaxRecipientsFuzzing::3");
     }
 
     function test_SetTaxRateAndShare() public {
@@ -229,12 +229,12 @@ contract TransferTripleTaxTokenTest is Test {
         vm.prank(from);
         token.transfer(to, amount2);
 
-        assertEq(token.balanceOf(from), 0, "test_TransferFuzzing::5");
+        assertEq(token.balanceOf(from), 0, "test_TransferFuzzing::6");
 
-        assertEq(token.balanceOf(to), amount1AfterTax + amount2, "test_TransferFuzzing::6");
-        assertEq(token.balanceOf(address(this)), totalTaxAmount, "test_TransferFuzzing::7");
-        assertEq(token.balanceOf(address(1)), tax1, "test_TransferFuzzing::8");
-        assertEq(token.balanceOf(address(2)), tax2, "test_TransferFuzzing::9");
+        assertEq(token.balanceOf(to), amount1AfterTax + amount2, "test_TransferFuzzing::7");
+        assertEq(token.balanceOf(address(this)), totalTaxAmount, "test_TransferFuzzing::8");
+        assertEq(token.balanceOf(address(1)), tax1, "test_TransferFuzzing::9");
+        assertEq(token.balanceOf(address(2)), tax2, "test_TransferFuzzing::10");
     }
 
     function test_TransferAndBurn() public {
