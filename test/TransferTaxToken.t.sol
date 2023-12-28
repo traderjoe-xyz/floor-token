@@ -67,21 +67,21 @@ contract TransferTaxTokenTest is Test {
 
     function test_SetTaxRecipientFuzzing(address recipient1, address recipient2) public {
         token.setTaxRecipient(recipient1);
-        assertEq(token.taxRecipient(), recipient1, "test_TaxRecipient::1");
+        assertEq(token.taxRecipient(), recipient1, "test_SetTaxRecipientFuzzing::1");
 
         token.setTaxRecipient(recipient2);
-        assertEq(token.taxRecipient(), recipient2, "test_TaxRecipient::2");
+        assertEq(token.taxRecipient(), recipient2, "test_SetTaxRecipientFuzzing::2");
     }
 
     function test_SetTaxRate() public {
         token.setTaxRate(1);
-        assertEq(token.taxRate(), 1, "test_TaxRate::1");
+        assertEq(token.taxRate(), 1, "test_SetTaxRate::1");
 
         token.setTaxRate(0);
-        assertEq(token.taxRate(), 0, "test_TaxRate::2");
+        assertEq(token.taxRate(), 0, "test_SetTaxRate::2");
 
         token.setTaxRate(1e18);
-        assertEq(token.taxRate(), 1e18, "test_TaxRate::3");
+        assertEq(token.taxRate(), 1e18, "test_SetTaxRate::3");
 
         vm.expectRevert("TransferTaxToken: tax rate exceeds 100%");
         token.setTaxRate(1e18 + 1);
@@ -92,10 +92,10 @@ contract TransferTaxTokenTest is Test {
         rate2 = bound(rate2, 0, 1e18);
 
         token.setTaxRate(rate1);
-        assertEq(token.taxRate(), rate1, "test_TaxRate::1");
+        assertEq(token.taxRate(), rate1, "test_SetTaxRateFuzzing::1");
 
         token.setTaxRate(rate2);
-        assertEq(token.taxRate(), rate2, "test_TaxRate::2");
+        assertEq(token.taxRate(), rate2, "test_SetTaxRateFuzzing::2");
 
         vm.expectRevert("TransferTaxToken: tax rate exceeds 100%");
         token.setTaxRate(bound(rate1, 1e18 + 1, type(uint256).max));
@@ -230,8 +230,8 @@ contract TransferTaxTokenTest is Test {
         uint256 tax1 = amount1.mulDiv(taxRate, 1e18);
         uint256 amountAfterTax1 = amount1 - tax1;
 
-        assertEq(token.balanceOf(to), amountAfterTax1, "test_Transfer::2");
-        assertEq(token.balanceOf(address(this)), tax1, "test_Transfer::3");
+        assertEq(token.balanceOf(to), amountAfterTax1, "test_TransferFuzzing::2");
+        assertEq(token.balanceOf(address(this)), tax1, "test_TransferFuzzing::3");
 
         token.setExcludedFromTax(from, 1); // Only from
 
@@ -295,23 +295,23 @@ contract TransferTaxTokenTest is Test {
         vm.prank(from);
         token.transfer(to, amount1);
 
-        assertEq(token.balanceOf(from), sum - amount1, "test_TransferFuzzing::1");
+        assertEq(token.balanceOf(from), sum - amount1, "testFuzzing_TransferAndBurn::1");
 
         uint256 tax1 = amount1.mulDiv(taxRate, 1e18);
         uint256 amountAfterTax1 = amount1 - tax1;
 
-        assertEq(token.balanceOf(to), amountAfterTax1, "test_Transfer::2");
-        assertEq(token.totalSupply(), sum - tax1, "test_Transfer::3");
+        assertEq(token.balanceOf(to), amountAfterTax1, "testFuzzing_TransferAndBurn::2");
+        assertEq(token.totalSupply(), sum - tax1, "testFuzzing_TransferAndBurn::3");
 
         token.setExcludedFromTax(from, 3);
 
         vm.prank(from);
         token.transfer(to, amount2);
 
-        assertEq(token.balanceOf(from), 0, "test_TransferFuzzing::4");
+        assertEq(token.balanceOf(from), 0, "testFuzzing_TransferAndBurn::4");
 
-        assertEq(token.balanceOf(to), amountAfterTax1 + amount2, "test_TransferFuzzing::5");
-        assertEq(token.totalSupply(), sum - tax1, "test_TransferFuzzing::6");
+        assertEq(token.balanceOf(to), amountAfterTax1 + amount2, "testFuzzing_TransferAndBurn::5");
+        assertEq(token.totalSupply(), sum - tax1, "testFuzzing_TransferAndBurn::6");
     }
 
     function test_SelfTransferNoTax() public {

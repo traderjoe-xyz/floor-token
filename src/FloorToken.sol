@@ -25,8 +25,6 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     using PriceHelper for uint24;
     using PackedUint128Math for bytes32;
 
-    uint256 public constant override MAX_NUM_BINS = 100;
-
     IERC20 public immutable override tokenY;
     ILBPair public immutable override pair;
     uint16 public immutable override binStep;
@@ -153,20 +151,34 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     }
 
     /**
-     * @notice Raises the floor by `nbBins` bins. New tokens will be minted to the pair contract and directly
+     * @notice Raises the roof by `nbBins` bins. New tokens will be minted to the pair contract and directly
      * added to new bins that weren't previously in the range. This will not decrease the floor price as the
      * tokens are minted are directly added to the pair contract, so the circulating supply is not increased.
      * @dev The new roof will be `roofId + nbBins`, if the roof wasn't already raised, the new roof will be
      * `floorId + nbBins - 1`. Only callable by the owner.
      * This functions should not be called too often as it will increase the gas cost of the transfers, and
      * might even make the transfers if the transaction runs out of gas. It is recommended to only call this
-     * function when the floor is close to the roof.
+     * function when the active bin is close to the roof bin.
      * The nonReentrant check is done in `_raiseRoof`.
      * @param nbBins The number of bins to raise the floor by.
      */
     function raiseRoof(uint24 nbBins) public virtual override onlyOwner {
         (uint24 floorId, uint24 roofId) = range();
         _raiseRoof(roofId, floorId, nbBins);
+    }
+
+    /**
+     * @notice Reduces the roof by `nbBins` bins. The tokens that are removed from the roof will be burned.
+     * This will not decrease the floor price as the tokens are burned, so the circulating supply doesn't
+     * change. Only callable by the owner.
+     * @dev The new roof will be `roofId - nbBins`, up to the active bin, unless the floor is above it.
+     * This function should be called when the roof is too high compared to the active bin, as it will
+     * reduce the gas cost of the transfers.
+     * @param nbBins The number of bins to reduce the roof by.
+     */
+    function reduceRoof(uint24 nbBins) public virtual override onlyOwner {
+        (uint24 floorId, uint24 roofId) = range();
+        _reduceRoof(roofId, floorId, nbBins);
     }
 
     /**
@@ -183,10 +195,13 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
     /**
      * @notice Unpauses the rebalance of the floor.
-     * @dev Only callable by the owner.
+     * @dev Only callable by the owner when the active bin is below the roof bin.
      */
     function unpauseRebalance() public virtual override onlyOwner {
         require(rebalancePaused(), "FloorToken: rebalance already unpaused");
+
+        (, uint24 roofId) = range();
+        require(roofId == 0 || pair.getActiveId() <= roofId, "FloorToken: active bin above roof");
 
         _rebalancePaused = false;
 
@@ -344,8 +359,18 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
         // Get the ids of the bins to remove
         uint256[] memory ids = new uint256[](nbBins);
+        uint256 j;
         for (uint256 i; i < nbBins;) {
-            ids[i] = floorId + i;
+            uint256 amountY = tokenYReserves[i];
+
+            if (amountY > 0) {
+                ids[j] = floorId + i;
+                shares[j] = shares[i];
+
+                unchecked {
+                    ++j;
+                }
+            }
 
             unchecked {
                 ++i;
@@ -356,13 +381,14 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         // checked that the new floor id is greater than the current floor id, so we know that the length of the shares
         // array is greater than the number of bins to remove, so this is safe to do
         assembly {
-            mstore(shares, nbBins)
+            mstore(ids, j)
+            mstore(shares, j)
         }
 
         // Update the floor id
         _floorId = uint24(newFloorId);
 
-        _safeRebalance(ids, shares, uint24(newFloorId));
+        if (j > 0) _safeRebalance(ids, shares, uint24(newFloorId));
 
         emit FloorRaised(newFloorId);
 
@@ -433,8 +459,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     /**
      * @dev Raises the roof by `nbBins` bins. New tokens will be minted to the pair contract and directly
      * added to new bins that weren't previously in the range.
-     * This will revert if the difference between the new roof id and the floor id is greater than the maximum
-     * number of bins or if the current active bin is above the current roof id.
+     * This will revert if the current active bin is above the current roof id.
      * @param roofId The id of the roof bin.
      * @param floorId The id of the floor bin.
      * @param nbBins The number of bins to raise the roof by.
@@ -448,7 +473,7 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
         // Calculate the new roof id
         uint256 newRoofId = nextId + nbBins - 1;
-        require(newRoofId - floorId <= MAX_NUM_BINS && newRoofId <= type(uint24).max, "FloorToken: new roof too high");
+        require(newRoofId <= type(uint24).max, "FloorToken: new roof too high");
 
         // Calculate the amount of tokens to mint and the share per bin
         uint64 sharePerBin = uint64(Constants.PRECISION) / nbBins;
@@ -511,17 +536,92 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
     }
 
     /**
+     * @dev Reduces the roof by `nbBins` bins. The tokens that are removed from the roof will be burned.
+     * @param roofId The id of the roof bin.
+     * @param floorId The id of the floor bin.
+     * @param nbBins The number of bins to reduce the roof by.
+     */
+    function _reduceRoof(uint24 roofId, uint24 floorId, uint24 nbBins) internal virtual nonReentrant {
+        require(nbBins > 0, "FloorToken: zero bins");
+        require(roofId > nbBins, "FloorToken: roof too low");
+
+        uint24 activeId = pair.getActiveId();
+        uint24 newRoofId = roofId - nbBins;
+
+        require(newRoofId > activeId, "FloorToken: new roof not above active bin");
+        require(newRoofId >= floorId, "FloorToken: new roof below floor bin");
+
+        // Calculate the ids of the bins to remove
+        uint256[] memory ids = new uint256[](nbBins);
+        uint256[] memory shares = new uint256[](nbBins);
+        for (uint256 i; i < nbBins;) {
+            uint256 id = roofId - i;
+
+            ids[i] = id;
+            shares[i] = pair.balanceOf(address(this), id);
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        // Get the actual balance of floor that was transferred to the pair contract
+        (uint256 floorReserve, uint256 tokenYReserve) = pair.getReserves();
+        (uint256 floorProtocolFees, uint256 tokenYProtocolFees) = pair.getProtocolFees();
+
+        uint256 floorBalance = balanceOf(address(pair));
+
+        uint256 floorExcess = floorBalance - (floorReserve + floorProtocolFees);
+
+        // Burn the shares and send the tokenY to the pair
+        pair.burn(address(this), address(pair), ids, shares);
+
+        // Get the current tokenY balance of the pair contract (minus the protocol fees)
+        (uint256 newFloorReserve, uint256 newTokenYReserve) = pair.getReserves();
+        (uint256 newFloorProtocolFees, uint256 newTokenYProtocolFees) = pair.getProtocolFees();
+
+        require(
+            newTokenYReserve == tokenYReserve && newTokenYProtocolFees == tokenYProtocolFees,
+            "FloorToken: tokenY reserve changed"
+        );
+
+        uint256 newFloorBalance = balanceOf(address(pair));
+
+        require(newFloorBalance == floorBalance, "FloorToken: floor balance changed");
+
+        uint256 newFloorExcess = newFloorBalance - (newFloorReserve + newFloorProtocolFees);
+
+        // Burn the tokens that were removed from the pair contract
+        if (newFloorExcess > floorExcess) _burn(address(pair), newFloorExcess - floorExcess);
+
+        // Update the roof id
+        _roofId = newRoofId;
+
+        emit RoofReduced(newRoofId);
+    }
+
+    /**
      * @dev Overrides the `_beforeTokenTransfer` function to rebalance the floor if needed and when possible.
      * @param from The address of the sender.
      * @param to The address of the recipient.
      */
     function _beforeTokenTransfer(address from, address to, uint256) internal virtual {
+        if (from == address(0) || to == address(0)) return;
+
+        if (rebalancePaused()) return; // TODO CHECK if pause then above then swap from above
+
         // If the token is being transferred from the pair contract, it can't be rebalanced as the
-        // reentrancy guard will prevent it
-        if (from == address(pair) || from == address(0) || to == address(0)) return;
+        // reentrancy guard will prevent it. Also prevent the active bin to be above the roof bin.
+        if (from == address(pair)) {
+            uint24 activeId = pair.getActiveId();
+            (, uint24 roofId) = range();
+            require(activeId <= roofId, "FloorToken: active bin above roof");
+
+            return;
+        }
 
         // If the rebalance is not paused, rebalance the floor if needed
-        if (!rebalancePaused() && _status == _STATUS_NOT_ENTERED) _rebalanceFloor();
+        if (_status == _STATUS_NOT_ENTERED) _rebalanceFloor();
     }
 
     /**

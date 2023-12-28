@@ -8,11 +8,11 @@ interface IFloorToken {
 
     event RoofRaised(uint256 newRoofId);
 
+    event RoofReduced(uint256 newRoofId);
+
     event RebalancePaused();
 
     event RebalanceUnpaused();
-
-    function MAX_NUM_BINS() external view returns (uint256);
 
     function pair() external view returns (ILBPair);
 
@@ -39,6 +39,8 @@ interface IFloorToken {
     function rebalanceFloor() external;
 
     function raiseRoof(uint24 nbBins) external;
+
+    function reduceRoof(uint24 nbBins) external;
 
     function pauseRebalance() external;
 

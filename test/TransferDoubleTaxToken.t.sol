@@ -68,10 +68,10 @@ contract TransferDoubleTaxTokenTest is Test {
 
     function test_SetTaxRecipientsFuzzing(address recipient1, address recipient2) public {
         token.setTaxRecipient(recipient1);
-        assertEq(token.taxRecipient(), recipient1, "test_TaxRecipientFuzzing::1");
+        assertEq(token.taxRecipient(), recipient1, "test_SetTaxRecipientsFuzzing::1");
 
         token.setSecondTaxRecipient(recipient2);
-        assertEq(token.secondTaxRecipient(), recipient2, "test_TaxRecipientFuzzing::2");
+        assertEq(token.secondTaxRecipient(), recipient2, "test_SetTaxRecipientsFuzzing::2");
     }
 
     function test_SetTaxRateAndShare() public {
@@ -151,7 +151,7 @@ contract TransferDoubleTaxTokenTest is Test {
         assertEq(token.balanceOf(address(2)), 9, "test_Transfer::5");
         assertEq(token.balanceOf(address(3)), 45, "test_Transfer::6");
         assertEq(token.balanceOf(address(this)), 4, "test_Transfer::7");
-        assertEq(token.balanceOf(address(5)), 2, "test_transfer::8");
+        assertEq(token.balanceOf(address(5)), 2, "test_Transfer::8");
 
         token.setExcludedFromTax(address(1), 3);
 
@@ -163,7 +163,7 @@ contract TransferDoubleTaxTokenTest is Test {
         assertEq(token.balanceOf(address(3)), 45, "test_Transfer::11");
         assertEq(token.balanceOf(address(4)), 40, "test_Transfer::12");
         assertEq(token.balanceOf(address(this)), 4, "test_Transfer::13");
-        assertEq(token.balanceOf(address(5)), 2, "test_transfer::14");
+        assertEq(token.balanceOf(address(5)), 2, "test_Transfer::14");
     }
 
     function test_TransferFuzzing(address from, address to, uint256 taxRate, uint256 amount1, uint256 amount2) public {
