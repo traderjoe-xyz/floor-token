@@ -344,8 +344,18 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
 
         // Get the ids of the bins to remove
         uint256[] memory ids = new uint256[](nbBins);
+        uint256 j;
         for (uint256 i; i < nbBins;) {
-            ids[i] = floorId + i;
+            uint256 amountY = tokenYReserves[i];
+
+            if (amountY > 0) {
+                ids[j] = floorId + i;
+                shares[j] = shares[i];
+
+                unchecked {
+                    ++j;
+                }
+            }
 
             unchecked {
                 ++i;
@@ -356,13 +366,14 @@ abstract contract FloorToken is Ownable2Step, IFloorToken {
         // checked that the new floor id is greater than the current floor id, so we know that the length of the shares
         // array is greater than the number of bins to remove, so this is safe to do
         assembly {
-            mstore(shares, nbBins)
+            mstore(ids, j)
+            mstore(shares, j)
         }
 
         // Update the floor id
         _floorId = uint24(newFloorId);
 
-        _safeRebalance(ids, shares, uint24(newFloorId));
+        if (j > 0) _safeRebalance(ids, shares, uint24(newFloorId));
 
         emit FloorRaised(newFloorId);
 
